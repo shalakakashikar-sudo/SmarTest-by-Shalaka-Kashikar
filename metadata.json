@@ -1,0 +1,5 @@
+{
+  "name": "SmarTest by Shalaka Kashikar",
+  "description": "A secure, AI-powered testing platform for creating, taking, and evaluating tests. This application integrates with Supabase for secure data storage and authentication, and utilizes serverless functions for secure AI interactions.",
+  "requestFramePermissions": []
+}

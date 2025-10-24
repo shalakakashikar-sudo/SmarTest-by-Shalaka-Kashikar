@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { dataService } from '../services/dataService';
 import { aiService } from '../services/aiService';
@@ -14,9 +14,20 @@ interface TempQuestion extends Question {
 interface CreateTestViewProps {
   navigateTo: (view: 'dashboard') => void;
   testToEdit?: Test | null;
+  onPreviewTest: (test: Test) => void;
 }
 
-const CreateTestView: React.FC<CreateTestViewProps> = ({ navigateTo, testToEdit }) => {
+const MiniToolbar: React.FC<{ onFormat: (tag: 'b' | 'i' | 'u') => void }> = ({ onFormat }) => {
+    return (
+        <div className="flex space-x-1 mb-1">
+            <button type="button" onClick={() => onFormat('b')} className="px-2 py-0.5 text-sm bg-gray-200 dark:bg-slate-600 rounded font-bold" aria-label="Bold">B</button>
+            <button type="button" onClick={() => onFormat('i')} className="px-2 py-0.5 text-sm bg-gray-200 dark:bg-slate-600 rounded italic" aria-label="Italic">I</button>
+            <button type="button" onClick={() => onFormat('u')} className="px-2 py-0.5 text-sm bg-gray-200 dark:bg-slate-600 rounded underline" aria-label="Underline">U</button>
+        </div>
+    );
+};
+
+const CreateTestView: React.FC<CreateTestViewProps> = ({ navigateTo, testToEdit, onPreviewTest }) => {
     const { profile } = useAuth();
     const { addToast } = useToast();
     const [title, setTitle] = useState('');
@@ -57,7 +68,6 @@ const CreateTestView: React.FC<CreateTestViewProps> = ({ navigateTo, testToEdit 
         setQuestions([...questions, newQuestion]);
     };
     
-    // FIX: Update the function signature to accept Partial<TempQuestion> to allow setting 'isRegenerating' state.
     const updateQuestion = useCallback((tempId: string, updatedField: Partial<TempQuestion>) => {
         setQuestions(prev => prev.map(q => q.tempId === tempId ? { ...q, ...updatedField } : q));
     }, []);
@@ -151,6 +161,18 @@ const CreateTestView: React.FC<CreateTestViewProps> = ({ navigateTo, testToEdit 
             setLoading(false);
         }
     };
+
+    const handlePreview = () => {
+        const testToPreview: Test = {
+            title,
+            class: testClass,
+            timer: timer,
+            total_marks: totalMarks,
+            questions: questions.map(({ tempId, isRegenerating, ...q }) => q),
+            total_questions: questions.length,
+        };
+        onPreviewTest(testToPreview);
+    };
     
     return (
         <div className="bg-white rounded-lg shadow-lg p-6 dark:bg-slate-800">
@@ -185,6 +207,9 @@ const CreateTestView: React.FC<CreateTestViewProps> = ({ navigateTo, testToEdit 
             </div>
 
             <div className="flex justify-end space-x-4">
+                <button onClick={handlePreview} disabled={loading} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg disabled:bg-indigo-400">
+                  Preview Test
+                </button>
                 <button onClick={saveTest} disabled={loading} className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg disabled:bg-green-400">
                   {loading ? 'Saving...' : (isEditMode ? 'Update Test' : 'Save Test')}
                 </button>
@@ -294,12 +319,31 @@ const AIGenerationModal: React.FC<{
 
 // --- Question Editor Component ---
 const QuestionEditor: React.FC<{ question: TempQuestion; index: number; updateQuestion: (tempId: string, updatedField: Partial<TempQuestion>) => void; removeQuestion: (tempId: string) => void; onRegenerate: (tempId: string) => void; }> = React.memo(({ question, index, updateQuestion, removeQuestion, onRegenerate }) => {
+    const [isMediaOpen, setIsMediaOpen] = useState(false);
+    const textRef = useRef<HTMLTextAreaElement>(null);
+    const correctAnswerRef = useRef<HTMLTextAreaElement>(null);
+    const passageRef = useRef<HTMLTextAreaElement>(null);
+    const compAnswerRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
+
+    const handleFormat = (
+        ref: React.RefObject<HTMLTextAreaElement>,
+        callback: (newValue: string) => void
+    ) => (tag: 'b' | 'i' | 'u') => {
+        const textarea = ref.current;
+        if (!textarea) return;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        if (start === end) return;
+        const value = textarea.value;
+        const selectedText = value.substring(start, end);
+        const newValue = `${value.substring(0, start)}<${tag}>${selectedText}</${tag}>${value.substring(end)}`;
+        callback(newValue);
+    };
     
     const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const newType = e.target.value as QuestionType;
         const newFields: Partial<Question> = { type: newType };
         
-        // Set defaults for new type
         if (newType === 'multiple-choice') {
             newFields.options = ['', '', '', ''];
             newFields.correctAnswer = 'A';
@@ -308,10 +352,9 @@ const QuestionEditor: React.FC<{ question: TempQuestion; index: number; updateQu
             newFields.correctAnswer = 'True';
         } else if (newType === 'reading-comprehension') {
             newFields.passage = '';
-            // FIX: Explicitly type the new comprehension question to match the ComprehensionQuestion interface.
             const newCompQuestion: ComprehensionQuestion = { question: '', sampleAnswer: '', type: 'short-answer', marks: 1 };
             newFields.comprehensionQuestions = [newCompQuestion];
-            newFields.marks = 0; // Marks are derived from sub-questions
+            newFields.marks = 0;
         } else {
             delete newFields.options;
             newFields.correctAnswer = '';
@@ -326,6 +369,10 @@ const QuestionEditor: React.FC<{ question: TempQuestion; index: number; updateQu
         updateQuestion(question.tempId, { options: newOptions });
     };
 
+    const handleMediaChange = (type: 'image' | 'video' | 'audio', value: string) => {
+        updateQuestion(question.tempId, { media: { ...question.media, [type]: value || undefined } });
+    };
+
     const handleComprehensionQuestionChange = (compIndex: number, field: keyof ComprehensionQuestion, value: any) => {
         const newCompQuestions = [...(question.comprehensionQuestions || [])];
         newCompQuestions[compIndex] = { ...newCompQuestions[compIndex], [field]: value };
@@ -333,7 +380,6 @@ const QuestionEditor: React.FC<{ question: TempQuestion; index: number; updateQu
     };
 
     const addComprehensionQuestion = () => {
-        // FIX: Explicitly type the new comprehension question object to ensure its 'type' property is correctly inferred as a literal type ('short-answer') instead of a generic string.
         const newCompQuestion: ComprehensionQuestion = { question: '', sampleAnswer: '', type: 'short-answer', marks: 1 };
         const newCompQuestions = [...(question.comprehensionQuestions || []), newCompQuestion];
         updateQuestion(question.tempId, { comprehensionQuestions: newCompQuestions });
@@ -346,22 +392,38 @@ const QuestionEditor: React.FC<{ question: TempQuestion; index: number; updateQu
     
     return (
         <div className={`p-4 border rounded-lg bg-gray-100 dark:bg-slate-900/50 dark:border-slate-700 ${question.isRegenerating ? 'opacity-50 pointer-events-none' : ''}`}>
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex justify-between items-start mb-4">
                 <h4 className="font-semibold text-gray-800 dark:text-slate-200">Question {index + 1}</h4>
                 <div className="flex items-center space-x-2">
+                    <button onClick={() => setIsMediaOpen(!isMediaOpen)} className="text-gray-500 hover:text-gray-800 p-1 rounded-full dark:text-gray-400 dark:hover:text-gray-200" title="Add Media">
+                       📎
+                    </button>
                     <button onClick={() => onRegenerate(question.tempId)} className="text-purple-600 hover:text-purple-800 p-1 rounded-full dark:text-purple-400 dark:hover:text-purple-300" title="Regenerate with AI">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 110 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" /></svg>
                     </button>
-                    <button onClick={() => removeQuestion(question.tempId)} className="text-red-500 hover:text-red-700" title="Remove Question">&times;</button>
+                    <button onClick={() => removeQuestion(question.tempId)} className="text-red-500 hover:text-red-700 text-2xl leading-none" title="Remove Question">&times;</button>
                 </div>
             </div>
+
+            {isMediaOpen && (
+                <div className="p-3 mb-4 bg-gray-200 rounded-lg space-y-2 dark:bg-slate-700">
+                    <h5 className="text-sm font-semibold text-gray-700 dark:text-slate-200">Attach Media</h5>
+                    <div><input type="text" placeholder="Image URL" value={question.media?.image || ''} onChange={e => handleMediaChange('image', e.target.value)} className="w-full p-2 text-sm border rounded-lg dark:bg-slate-600 dark:border-slate-500 dark:text-white" /></div>
+                    <div><input type="text" placeholder="Video URL" value={question.media?.video || ''} onChange={e => handleMediaChange('video', e.target.value)} className="w-full p-2 text-sm border rounded-lg dark:bg-slate-600 dark:border-slate-500 dark:text-white" /></div>
+                    <div><input type="text" placeholder="Audio URL" value={question.media?.audio || ''} onChange={e => handleMediaChange('audio', e.target.value)} className="w-full p-2 text-sm border rounded-lg dark:bg-slate-600 dark:border-slate-500 dark:text-white" /></div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div><label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Type</label><select value={question.type} onChange={handleTypeChange} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white"><option value="multiple-choice">Multiple Choice</option><option value="true-false">True/False</option><option value="short-answer">Short Answer</option><option value="long-answer">Long Answer</option><option value="reading-comprehension">Reading Comprehension</option></select></div>
                 <div><label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Marks</label><input type="number" value={question.marks} onChange={e => updateQuestion(question.tempId, { marks: parseInt(e.target.value) })} min="0" className="w-full p-2 border rounded-lg disabled:bg-gray-200 dark:bg-slate-700 dark:border-slate-600 dark:text-white" disabled={question.type === 'reading-comprehension'} /></div>
             </div>
             
-            <div><label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Question Text</label><textarea rows={3} value={question.text} onChange={e => updateQuestion(question.tempId, { text: e.target.value })} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white" /></div>
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Question Text</label>
+                <MiniToolbar onFormat={handleFormat(textRef, (newValue) => updateQuestion(question.tempId, { text: newValue }))} />
+                <textarea ref={textRef} rows={3} value={question.text} onChange={e => updateQuestion(question.tempId, { text: e.target.value })} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
+            </div>
 
             {question.type === 'multiple-choice' && (
                 <div className="mt-4">
@@ -393,13 +455,18 @@ const QuestionEditor: React.FC<{ question: TempQuestion; index: number; updateQu
             {(question.type === 'short-answer' || question.type === 'long-answer') && (
                 <div className="mt-4">
                     <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Sample Answer / Marking Scheme</label>
-                    <textarea rows={2} value={question.correctAnswer} onChange={e => updateQuestion(question.tempId, { correctAnswer: e.target.value })} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
+                    <MiniToolbar onFormat={handleFormat(correctAnswerRef, (newValue) => updateQuestion(question.tempId, { correctAnswer: newValue }))} />
+                    <textarea ref={correctAnswerRef} rows={2} value={question.correctAnswer} onChange={e => updateQuestion(question.tempId, { correctAnswer: e.target.value })} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
                 </div>
             )}
             
             {question.type === 'reading-comprehension' && (
                  <div className="mt-4 space-y-4">
-                    <div><label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Reading Passage</label><textarea rows={5} value={question.passage} onChange={e => updateQuestion(question.tempId, { passage: e.target.value })} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white" /></div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Reading Passage</label>
+                        <MiniToolbar onFormat={handleFormat(passageRef, (newValue) => updateQuestion(question.tempId, { passage: newValue }))} />
+                        <textarea ref={passageRef} rows={5} value={question.passage} onChange={e => updateQuestion(question.tempId, { passage: e.target.value })} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
+                    </div>
                     <div className="p-3 bg-blue-50 rounded-lg border dark:bg-blue-900/20 dark:border-blue-800">
                         <h5 className="font-semibold text-gray-700 mb-2 dark:text-slate-300">Comprehension Questions</h5>
                         <div className="space-y-3">
@@ -410,7 +477,15 @@ const QuestionEditor: React.FC<{ question: TempQuestion; index: number; updateQu
                                   <div><label className="text-xs font-medium dark:text-gray-400">Question {compIndex + 1}</label><input type="text" value={compQ.question} onChange={e => handleComprehensionQuestionChange(compIndex, 'question', e.target.value)} className="w-full p-1 border rounded text-sm dark:bg-slate-600 dark:border-slate-500 dark:text-white"/></div>
                                   <div><label className="text-xs font-medium dark:text-gray-400">Marks</label><input type="number" min="0" value={compQ.marks} onChange={e => handleComprehensionQuestionChange(compIndex, 'marks', parseInt(e.target.value))} className="w-full p-1 border rounded text-sm dark:bg-slate-600 dark:border-slate-500 dark:text-white"/></div>
                                </div>
-                               <div><label className="text-xs font-medium dark:text-gray-400">Sample Answer</label><textarea rows={2} value={compQ.sampleAnswer} onChange={e => handleComprehensionQuestionChange(compIndex, 'sampleAnswer', e.target.value)} className="w-full p-1 border rounded text-sm dark:bg-slate-600 dark:border-slate-500 dark:text-white"/></div>
+                               <div>
+                                  <label className="text-xs font-medium dark:text-gray-400">Sample Answer</label>
+                                  <textarea
+                                    ref={el => { compAnswerRefs.current[compIndex] = el }}
+                                    rows={2} value={compQ.sampleAnswer}
+                                    onChange={e => handleComprehensionQuestionChange(compIndex, 'sampleAnswer', e.target.value)}
+                                    className="w-full p-1 border rounded text-sm dark:bg-slate-600 dark:border-slate-500 dark:text-white"
+                                   />
+                               </div>
                             </div>
                         ))}
                         </div>
@@ -418,7 +493,6 @@ const QuestionEditor: React.FC<{ question: TempQuestion; index: number; updateQu
                     </div>
                  </div>
             )}
-
         </div>
     );
 });

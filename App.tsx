@@ -6,6 +6,7 @@ import AuthView from './views/AuthView';
 import DashboardView from './views/DashboardView';
 import CreateTestView from './views/CreateTestView';
 import TakeTestView from './views/TakeTestView';
+import PreviewTestView from './views/PreviewTestView';
 import ResultsView from './views/ResultsView';
 import SubmissionsView from './views/SubmissionsView';
 import SubmissionDetailView from './views/SubmissionDetailView';
@@ -14,13 +15,14 @@ import { Test, TestResult } from './types';
 import { supabase } from './services/supabase';
 import type { Session } from '@supabase/supabase-js';
 
-type View = 'auth' | 'dashboard' | 'create-test' | 'edit-test' | 'take-test' | 'results' | 'submissions' | 'submission-detail' | 'user-management';
+type View = 'auth' | 'dashboard' | 'create-test' | 'edit-test' | 'take-test' | 'preview-test' | 'results' | 'submissions' | 'submission-detail' | 'user-management';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [view, setView] = useState<View>('dashboard');
   const [currentTestToTake, setCurrentTestToTake] = useState<Test | null>(null);
   const [currentTestToEdit, setCurrentTestToEdit] = useState<Test | null>(null);
+  const [currentTestToPreview, setCurrentTestToPreview] = useState<Test | null>(null);
   const [currentTestToView, setCurrentTestToView] = useState<Test | null>(null);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [currentSubmissionToView, setCurrentSubmissionToView] = useState<TestResult | null>(null);
@@ -60,6 +62,11 @@ const App: React.FC = () => {
   const handleEditTest = (test: Test) => {
     setCurrentTestToEdit(test);
     navigateTo('edit-test');
+  };
+
+  const handlePreviewTest = (test: Test) => {
+    setCurrentTestToPreview(test);
+    navigateTo('preview-test');
   };
 
   const handleSubmitTest = (result: TestResult) => {
@@ -112,16 +119,25 @@ const App: React.FC = () => {
       case 'dashboard':
         return <DashboardView {...dashboardProps} />;
       case 'create-test':
-        return <CreateTestView navigateTo={navigateTo} />;
+        return <CreateTestView navigateTo={navigateTo} onPreviewTest={handlePreviewTest} />;
       case 'edit-test':
         return currentTestToEdit ? (
-            <CreateTestView navigateTo={navigateTo} testToEdit={currentTestToEdit} />
+            <CreateTestView navigateTo={navigateTo} testToEdit={currentTestToEdit} onPreviewTest={handlePreviewTest} />
         ) : (
             <DashboardView {...dashboardProps} />
         );
       case 'take-test':
         return currentTestToTake ? (
           <TakeTestView test={currentTestToTake} onSubmitTest={handleSubmitTest} navigateTo={navigateTo} />
+        ) : (
+          <DashboardView {...dashboardProps} />
+        );
+      case 'preview-test':
+        return currentTestToPreview ? (
+          <PreviewTestView
+            test={currentTestToPreview}
+            onBack={() => navigateTo(currentTestToEdit ? 'edit-test' : 'create-test')}
+          />
         ) : (
           <DashboardView {...dashboardProps} />
         );

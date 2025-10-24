@@ -11,6 +11,16 @@ interface TakeTestProps {
   navigateTo: (view: 'dashboard') => void;
 }
 
+const MiniToolbar: React.FC<{ onFormat: (tag: 'b' | 'i' | 'u') => void }> = ({ onFormat }) => {
+    return (
+        <div className="flex space-x-1 mb-1">
+            <button type="button" onClick={() => onFormat('b')} className="px-2 py-0.5 text-sm bg-gray-200 dark:bg-slate-600 rounded font-bold" aria-label="Bold">B</button>
+            <button type="button" onClick={() => onFormat('i')} className="px-2 py-0.5 text-sm bg-gray-200 dark:bg-slate-600 rounded italic" aria-label="Italic">I</button>
+            <button type="button" onClick={() => onFormat('u')} className="px-2 py-0.5 text-sm bg-gray-200 dark:bg-slate-600 rounded underline" aria-label="Underline">U</button>
+        </div>
+    );
+};
+
 const TakeTestView: React.FC<TakeTestProps> = ({ test, onSubmitTest, navigateTo }) => {
   const { profile } = useAuth();
   const { addToast } = useToast();
@@ -139,6 +149,23 @@ const TakeTestView: React.FC<TakeTestProps> = ({ test, onSubmitTest, navigateTo 
 
 const QuestionDisplay: React.FC<{ question: Question; index: number; answer: string | Record<number, string>; onAnswerChange: (index: number, answer: string | Record<number, string>) => void; }> = ({ question, index, answer, onAnswerChange }) => {
     let answerInput;
+    const answerTextareaRef = useRef<HTMLTextAreaElement>(null);
+    const compAnswerRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
+
+    const handleFormat = (
+        ref: React.RefObject<HTMLTextAreaElement>,
+        callback: (newValue: string) => void
+    ) => (tag: 'b' | 'i' | 'u') => {
+        const textarea = ref.current;
+        if (!textarea) return;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        if (start === end) return;
+        const value = textarea.value;
+        const selectedText = value.substring(start, end);
+        const newValue = `${value.substring(0, start)}<${tag}>${selectedText}</${tag}>${value.substring(end)}`;
+        callback(newValue);
+    };
 
     const handleComprehensionAnswer = (compIndex: number, compAnswer: string) => {
         const currentCompAnswers = typeof answer === 'object' ? answer : {};
@@ -175,17 +202,27 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
             );
             break;
         case 'short-answer':
-            answerInput = <textarea className={commonTextareaClasses} rows={3} placeholder="Enter your answer" value={typeof answer === 'string' ? answer : ''} onChange={e => onAnswerChange(index, e.target.value)} />;
+            answerInput = (
+                <>
+                    <MiniToolbar onFormat={handleFormat(answerTextareaRef, (newValue) => onAnswerChange(index, newValue))} />
+                    <textarea ref={answerTextareaRef} className={commonTextareaClasses} rows={3} placeholder="Enter your answer" value={typeof answer === 'string' ? answer : ''} onChange={e => onAnswerChange(index, e.target.value)} />
+                </>
+            );
             break;
         case 'long-answer':
-            answerInput = <textarea className={commonTextareaClasses} rows={6} placeholder="Write your detailed answer here" value={typeof answer === 'string' ? answer : ''} onChange={e => onAnswerChange(index, e.target.value)} />;
+            answerInput = (
+                <>
+                    <MiniToolbar onFormat={handleFormat(answerTextareaRef, (newValue) => onAnswerChange(index, newValue))} />
+                    <textarea ref={answerTextareaRef} className={commonTextareaClasses} rows={6} placeholder="Write your detailed answer here" value={typeof answer === 'string' ? answer : ''} onChange={e => onAnswerChange(index, e.target.value)} />
+                </>
+            );
             break;
         case 'reading-comprehension':
             answerInput = (
                 <div>
                     <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg mb-4 dark:bg-blue-900/30 dark:border-blue-800">
                         <h5 className="font-semibold text-blue-800 mb-2 dark:text-blue-300">📖 Reading Passage</h5>
-                        <p className="text-gray-700 whitespace-pre-wrap dark:text-slate-300">{question.passage}</p>
+                        <div className="text-gray-700 whitespace-pre-wrap dark:text-slate-300" dangerouslySetInnerHTML={{ __html: question.passage || '' }} />
                     </div>
                     <h5 className="font-semibold text-gray-800 mb-2 dark:text-slate-200">Comprehension Questions:</h5>
                     <div className="space-y-4">
@@ -195,7 +232,15 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{compIndex + 1}. {compQ.question}</label>
                                 <span className="text-xs text-gray-500 dark:text-gray-400">[{compQ.marks} marks]</span>
                             </div>
-                            <textarea className={commonTextareaClasses} rows={2} placeholder="Enter your answer" value={(typeof answer === 'object' && answer[compIndex]) || ''} onChange={e => handleComprehensionAnswer(compIndex, e.target.value)} />
+                            <MiniToolbar onFormat={handleFormat({ current: compAnswerRefs.current[compIndex] }, (newValue) => handleComprehensionAnswer(compIndex, newValue))} />
+                            <textarea 
+                                ref={el => { compAnswerRefs.current[compIndex] = el }} 
+                                className={commonTextareaClasses} 
+                                rows={2} 
+                                placeholder="Enter your answer" 
+                                value={(typeof answer === 'object' && answer[compIndex]) || ''} 
+                                onChange={e => handleComprehensionAnswer(compIndex, e.target.value)} 
+                            />
                         </div>
                     ))}
                     </div>
@@ -212,7 +257,16 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
                 <h4 className="font-semibold text-gray-800 dark:text-slate-200">Question {index + 1}</h4>
                 <span className="text-sm text-gray-600 dark:text-gray-400">[{question.marks > 0 ? `${question.marks} marks` : 'See sub-questions'}]</span>
             </div>
-            <p className="text-gray-700 mb-3 whitespace-pre-wrap dark:text-slate-300">{question.text}</p>
+            <div className="text-gray-700 mb-3 whitespace-pre-wrap dark:text-slate-300" dangerouslySetInnerHTML={{ __html: question.text }} />
+            
+            {(question.media?.image || question.media?.video || question.media?.audio) && (
+                <div className="my-4 p-2 border rounded-lg dark:border-slate-600">
+                    {question.media.image && <img src={question.media.image} alt="Question media" className="max-w-full h-auto rounded-md mx-auto" />}
+                    {question.media.video && <video src={question.media.video} controls className="max-w-full h-auto rounded-md mx-auto" />}
+                    {question.media.audio && <audio src={question.media.audio} controls className="w-full" />}
+                </div>
+            )}
+
             {answerInput}
         </div>
     );

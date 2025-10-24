@@ -15,6 +15,12 @@ interface DashboardProps {
   onViewResultDetails: (result: TestResult) => void;
 }
 
+interface ProgressData {
+  subject: string;
+  averageScore: number;
+  testCount: number;
+}
+
 const DashboardView: React.FC<DashboardProps> = ({ navigateTo, onStartTest, onEditTest, onViewSubmissions, onViewResultDetails }) => {
   const { profile, loading } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -48,6 +54,45 @@ const DashboardView: React.FC<DashboardProps> = ({ navigateTo, onStartTest, onEd
         fetchDashboardData();
     }
   }, [profile, addToast]);
+
+  const progressData = useMemo<ProgressData[]>(() => {
+    if (profile?.role !== 'student' || mySubmissions.length === 0 || tests.length === 0) {
+      return [];
+    }
+
+    const testIdToClassMap = new Map<string, string>();
+    tests.forEach(test => {
+      if (test.id && test.class) {
+        testIdToClassMap.set(test.id, test.class);
+      }
+    });
+
+    const progressBySubject = new Map<string, { sum: number; count: number }>();
+
+    mySubmissions.forEach(submission => {
+      const subject = testIdToClassMap.get(submission.test_id);
+      if (subject) {
+        if (!progressBySubject.has(subject)) {
+          progressBySubject.set(subject, { sum: 0, count: 0 });
+        }
+        const current = progressBySubject.get(subject)!;
+        current.sum += submission.evaluation.overallScore;
+        current.count += 1;
+      }
+    });
+
+    const calculatedProgress: ProgressData[] = [];
+    progressBySubject.forEach((value, key) => {
+      calculatedProgress.push({
+        subject: key,
+        averageScore: value.sum / value.count,
+        testCount: value.count,
+      });
+    });
+
+    return calculatedProgress.sort((a, b) => a.subject.localeCompare(b.subject));
+  }, [mySubmissions, tests, profile]);
+
 
   const handleLogout = async () => {
     try {
@@ -110,6 +155,48 @@ const DashboardView: React.FC<DashboardProps> = ({ navigateTo, onStartTest, onEd
     </div>
   );
 
+  const StudentProgressChart: React.FC<{ data: ProgressData[] }> = ({ data }) => {
+    const getScoreColor = (score: number) => {
+      if (score >= 80) return 'bg-green-500';
+      if (score >= 60) return 'bg-yellow-500';
+      return 'bg-red-500';
+    };
+
+    if (data.length === 0) {
+        return null; // Don't render if there's no data
+    }
+
+    return (
+      <div className="bg-white rounded-lg shadow-lg p-6 dark:bg-slate-800 mb-8">
+        <h2 className="text-2xl font-bold text-gray-800 mb-4 dark:text-slate-100">📈 My Subject Progress</h2>
+        <div className="space-y-4">
+          {data.map(({ subject, averageScore, testCount }) => (
+            <div key={subject}>
+              <div className="flex justify-between items-center mb-1 text-sm">
+                <span className="font-semibold text-gray-800 dark:text-slate-200">{subject}</span>
+                <span className="font-medium text-gray-600 dark:text-gray-400">
+                  Average: <span className="font-bold">{Math.round(averageScore)}%</span> ({testCount} {testCount > 1 ? 'tests' : 'test'})
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden dark:bg-slate-700" title={`Average score: ${Math.round(averageScore)}%`}>
+                <div
+                  className={`h-4 rounded-full transition-all duration-500 ease-out ${getScoreColor(averageScore)}`}
+                  style={{ width: `${averageScore}%` }}
+                  role="progressbar"
+                  aria-valuenow={Math.round(averageScore)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label={`${subject} progress`}
+                ></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -129,26 +216,52 @@ const DashboardView: React.FC<DashboardProps> = ({ navigateTo, onStartTest, onEd
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        {profile?.role === 'student' && (
-          <DashboardCard title="Take a Test" description="View and start available tests." buttonText="View Tests" onClick={() => document.getElementById('student-tests')?.scrollIntoView({ behavior: 'smooth' })} color="bg-green-600 hover:bg-green-700" icon="✏️" />
-        )}
-        {(profile?.role === 'teacher' || profile?.role === 'admin') && (
-          <DashboardCard title="Create Test" description="Design custom tests with multiple question types." buttonText="Create New Test" onClick={() => navigateTo('create-test')} color="bg-blue-600 hover:bg-blue-700" icon="📝" />
-        )}
-        {(profile?.role === 'teacher' || profile?.role === 'admin') && (
-          <DashboardCard title="User Management" description="View and manage student and teacher accounts." buttonText="Manage Users" onClick={() => navigateTo('user-management')} color="bg-purple-600 hover:bg-purple-700" icon="👥" />
-        )}
-        {profile?.role === 'admin' && (
-            <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow dark:bg-slate-800 dark:hover:shadow-indigo-900/20">
-                <div className="text-center">
-                    <div className="text-4xl mb-4">🔐</div>
-                    <h3 className="text-xl font-semibold text-gray-800 mb-2 dark:text-slate-100">Security Note</h3>
-                    <p className="text-gray-600 mb-4 dark:text-gray-400">AI API keys are securely managed on the server via Supabase Edge Functions to prevent misuse.</p>
-                </div>
+      <div className="mb-8">
+        {profile?.role === 'student' ? (
+          <div className="flex justify-center">
+            <div className="w-full max-w-sm">
+              <DashboardCard 
+                title="Take a Test" 
+                description="View and start available tests." 
+                buttonText="View Tests" 
+                onClick={() => document.getElementById('student-tests')?.scrollIntoView({ behavior: 'smooth' })} 
+                color="bg-green-600 hover:bg-green-700" 
+                icon="✏️" 
+              />
             </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <DashboardCard 
+              title="Create Test" 
+              description="Design custom tests with multiple question types." 
+              buttonText="Create New Test" 
+              onClick={() => navigateTo('create-test')} 
+              color="bg-blue-600 hover:bg-blue-700" 
+              icon="📝" 
+            />
+            <DashboardCard 
+              title="User Management" 
+              description="View and manage student and teacher accounts." 
+              buttonText="Manage Users" 
+              onClick={() => navigateTo('user-management')} 
+              color="bg-purple-600 hover:bg-purple-700" 
+              icon="👥" 
+            />
+            {profile?.role === 'admin' && (
+              <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow dark:bg-slate-800 dark:hover:shadow-indigo-900/20">
+                <div className="text-center">
+                  <div className="text-4xl mb-4">🔐</div>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-2 dark:text-slate-100">Security Note</h3>
+                  <p className="text-gray-600 mb-4 dark:text-gray-400">AI API keys are securely managed on the server via Supabase Edge Functions to prevent misuse.</p>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
+      
+      {profile?.role === 'student' && <StudentProgressChart data={progressData} />}
 
       {profile?.role === 'student' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

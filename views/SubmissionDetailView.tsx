@@ -52,7 +52,23 @@ const QuestionBreakdown: React.FC<{ question: Question, answer: any, score: any,
             <h4 className="font-semibold text-gray-800 text-lg dark:text-slate-200">Question {index + 1}</h4>
             <div className={`px-3 py-1 text-white text-sm font-bold rounded-full ${scoreColor}`}>{score.score}%</div>
         </div>
-        <p className="text-gray-700 mb-4 whitespace-pre-wrap font-medium dark:text-slate-300">{question.text}</p>
+        
+        {question.type === 'reading-comprehension' && question.passage && (
+            <div className="p-3 bg-gray-100 rounded-md border mb-4 dark:bg-slate-800 dark:border-slate-600">
+                <h5 className="font-semibold text-gray-600 mb-1 dark:text-slate-400">Reading Passage</h5>
+                <div className="text-gray-700 whitespace-pre-wrap dark:text-slate-300" dangerouslySetInnerHTML={{ __html: question.passage }} />
+            </div>
+        )}
+        
+        <div className="text-gray-700 mb-4 whitespace-pre-wrap font-medium dark:text-slate-300" dangerouslySetInnerHTML={{ __html: question.text }} />
+
+        {(question.media?.image || question.media?.video || question.media?.audio) && (
+            <div className="my-4 p-2 border rounded-lg dark:border-slate-600">
+                {question.media.image && <img src={question.media.image} alt="Question media" className="max-w-full h-auto rounded-md mx-auto" />}
+                {question.media.video && <video src={question.media.video} controls className="max-w-full h-auto rounded-md mx-auto" />}
+                {question.media.audio && <audio src={question.media.audio} controls className="w-full" />}
+            </div>
+        )}
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white rounded-lg p-3 border dark:bg-slate-700 dark:border-slate-600">
@@ -75,7 +91,10 @@ const DisplayAnswer: React.FC<{answer: any, question: Question}> = ({ answer, qu
                 {(question.comprehensionQuestions || []).map((compQ, index) => (
                     <div key={index} className="text-sm">
                         <p className="font-medium text-gray-600 dark:text-gray-400">{compQ.question}</p>
-                        <p className="text-gray-800 pl-2 border-l-2 border-gray-200 dark:text-slate-200 dark:border-slate-600">{answer[index] || <span className="text-gray-400 italic">No answer provided</span>}</p>
+                        <div 
+                            className="text-gray-800 pl-2 border-l-2 border-gray-200 dark:text-slate-200 dark:border-slate-600"
+                            dangerouslySetInnerHTML={{ __html: answer[index] || `<span class="text-gray-400 italic">No answer provided</span>` }}
+                        />
                     </div>
                 ))}
             </div>
@@ -83,12 +102,17 @@ const DisplayAnswer: React.FC<{answer: any, question: Question}> = ({ answer, qu
     }
     
     if (question.type === 'multiple-choice') {
-        const optionIndex = answer.charCodeAt(0) - 65;
+        const optionIndex = answer ? answer.charCodeAt(0) - 65 : -1;
         const selectedOption = question.options?.[optionIndex];
-        return <p className="text-gray-800 whitespace-pre-wrap dark:text-slate-200">{answer}. {selectedOption || <span className="text-gray-400 italic">Invalid option</span>}</p>
+        return <p className="text-gray-800 whitespace-pre-wrap dark:text-slate-200">{answer}. {selectedOption || <span className="text-gray-400 italic">No answer provided</span>}</p>
     }
 
-    return <p className="text-gray-800 whitespace-pre-wrap dark:text-slate-200">{answer || <span className="text-gray-400 italic">No answer provided</span>}</p>;
+    return (
+        <div 
+            className="text-gray-800 whitespace-pre-wrap dark:text-slate-200"
+            dangerouslySetInnerHTML={{ __html: answer || `<span class="text-gray-400 italic">No answer provided</span>` }}
+        />
+    );
 };
 
 export default SubmissionDetailView;

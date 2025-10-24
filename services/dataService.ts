@@ -58,7 +58,14 @@ export const dataService = {
     
     if (deleteError) throw deleteError;
 
-    const questionsToInsert = test.questions.map(q => ({ ...q, test_id: test.id, id: undefined }));
+    // FIX: Explicitly remove the 'id' property from questions before re-inserting.
+    // This prevents a "not-null constraint" violation by ensuring the database
+    // generates a new UUID for each question row.
+    const questionsToInsert = test.questions.map(q => {
+        const { id, ...questionData } = q;
+        return { ...questionData, test_id: test.id };
+    });
+    
     const { error: questionsError } = await supabase
       .from('questions')
       .insert(questionsToInsert);

@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Test, TestResult } from '../types';
+import type { Test, TestResult, EvaluationResult } from '../types';
 
 export const dataService = {
   async createTest(test: Test) {
@@ -119,6 +119,17 @@ export const dataService = {
     const { data, error } = await supabase
         .from('test_results')
         .insert([result])
+        .select()
+        .single();
+    if(error) throw error;
+    return data;
+  },
+  
+  async updateTestResult(resultId: string, newEvaluation: EvaluationResult) {
+    const { data, error } = await supabase
+        .from('test_results')
+        .update({ evaluation: newEvaluation })
+        .eq('id', resultId)
         .select()
         .single();
     if(error) throw error;

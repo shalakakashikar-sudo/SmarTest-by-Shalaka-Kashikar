@@ -162,7 +162,6 @@ export const dataService = {
       throw new Error(sessionError?.message || 'User is not authenticated.');
     }
 
-    // FIX: Removed manual headers. The Supabase client automatically adds auth headers.
     const { data, error } = await supabase.functions.invoke('admin-get-users');
 
     if (error) {
@@ -179,7 +178,6 @@ export const dataService = {
       throw new Error(sessionError?.message || 'User is not authenticated.');
     }
 
-    // FIX: Removed manual headers and passed the body as an object.
     const { error } = await supabase.functions.invoke('admin-delete-user', {
       body: { userId },
     });

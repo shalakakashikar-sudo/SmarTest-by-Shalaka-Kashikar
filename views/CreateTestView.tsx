@@ -39,15 +39,61 @@ const CreateTestView: React.FC<CreateTestViewProps> = ({ navigateTo, testToEdit,
     const [isGenerating, setIsGenerating] = useState(false);
 
     const isEditMode = !!testToEdit;
+    const autoSaveKey = `smartest-autosave-create-${profile?.id}-${testToEdit?.id || 'new'}`;
+    const hasShownToast = useRef(false);
 
+    // Effect to initialize state from props (edit mode) or localStorage (create mode)
     useEffect(() => {
       if (isEditMode && testToEdit) {
         setTitle(testToEdit.title);
         setTestClass(testToEdit.class);
         setTimer(testToEdit.timer);
         setQuestions(testToEdit.questions.map(q => ({ ...q, tempId: uuidv4() })));
+      } else if (!isEditMode) {
+        try {
+          const savedData = localStorage.getItem(autoSaveKey);
+          if (savedData) {
+            const parsedData = JSON.parse(savedData);
+            if (parsedData.title || (parsedData.questions && parsedData.questions.length > 0)) {
+                setTitle(parsedData.title || '');
+                setTestClass(parsedData.testClass || '');
+                setTimer(parsedData.timer || null);
+                setQuestions(parsedData.questions || []);
+                addToast('Your unsaved progress has been restored.', 'info');
+                hasShownToast.current = true;
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load test from localStorage:', error);
+        }
       }
-    }, [isEditMode, testToEdit]);
+    }, [isEditMode, testToEdit, addToast, autoSaveKey]);
+    
+    // Auto-save logic
+    const currentStateRef = useRef({ title, testClass, timer, questions });
+    currentStateRef.current = { title, testClass, timer, questions };
+
+    useEffect(() => {
+        const intervalId = setInterval(() => {
+            const { title, questions } = currentStateRef.current;
+            if (!title.trim() && questions.length === 0) {
+                return; // Don't save an empty test
+            }
+
+            try {
+                localStorage.setItem(autoSaveKey, JSON.stringify(currentStateRef.current));
+                if (!hasShownToast.current) {
+                    addToast('Your progress is being saved automatically.', 'info');
+                    hasShownToast.current = true;
+                }
+            } catch (error) {
+                console.error('Failed to auto-save test:', error);
+            }
+        }, 5000); // Save every 5 seconds
+
+        return () => clearInterval(intervalId);
+    }, [autoSaveKey, addToast]);
+
 
     const totalMarks = questions.reduce((total, q) => {
       if (q.type === 'reading-comprehension' && q.comprehensionQuestions) {
@@ -154,6 +200,7 @@ const CreateTestView: React.FC<CreateTestViewProps> = ({ navigateTo, testToEdit,
                 await dataService.createTest(testToSave);
                 addToast('Test created successfully!', 'success');
             }
+            localStorage.removeItem(autoSaveKey); // Clear auto-saved data on success
             navigateTo('dashboard');
         } catch (error: any) {
             addToast(`Failed to save test: ${error.message}`, 'error');
@@ -342,7 +389,8 @@ const QuestionEditor: React.FC<{ question: TempQuestion; index: number; updateQu
     
     const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const newType = e.target.value as QuestionType;
-        const newFields: Partial<Question> = { type: newType };
+        // FIX: Preserve the existing media object when changing question type to prevent data loss.
+        const newFields: Partial<Question> = { type: newType, media: question.media };
         
         if (newType === 'multiple-choice') {
             newFields.options = ['', '', '', ''];
@@ -370,7 +418,10 @@ const QuestionEditor: React.FC<{ question: TempQuestion; index: number; updateQu
     };
 
     const handleMediaChange = (type: 'image' | 'video' | 'audio', value: string) => {
-        updateQuestion(question.tempId, { media: { ...question.media, [type]: value || undefined } });
+        // FIX: When adding media for the first time, `question.media` is undefined.
+        // The code `...question.media` would throw an error. Initialize an empty object if it's undefined.
+        const currentMedia = question.media || {};
+        updateQuestion(question.tempId, { media: { ...currentMedia, [type]: value || undefined } });
     };
 
     const handleComprehensionQuestionChange = (compIndex: number, field: keyof ComprehensionQuestion, value: any) => {
@@ -481,21 +532,21 @@ const QuestionEditor: React.FC<{ question: TempQuestion; index: number; updateQu
                                   <label className="text-xs font-medium dark:text-gray-400">Sample Answer</label>
                                   <textarea
                                     ref={el => { compAnswerRefs.current[compIndex] = el }}
-                                    rows={2} value={compQ.sampleAnswer}
+                                    rows={2}
+                                    value={compQ.sampleAnswer}
                                     onChange={e => handleComprehensionQuestionChange(compIndex, 'sampleAnswer', e.target.value)}
                                     className="w-full p-1 border rounded text-sm dark:bg-slate-600 dark:border-slate-500 dark:text-white"
-                                   />
+                                  />
                                </div>
                             </div>
                         ))}
                         </div>
-                        <button onClick={addComprehensionQuestion} className="mt-2 text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">+ Add Sub-question</button>
+                        <button onClick={addComprehensionQuestion} className="mt-3 text-sm bg-blue-200 hover:bg-blue-300 text-blue-800 px-3 py-1 rounded dark:bg-blue-800 dark:hover:bg-blue-700 dark:text-blue-200">+ Add Sub-Question</button>
                     </div>
-                 </div>
+                </div>
             )}
         </div>
     );
 });
-
 
 export default CreateTestView;

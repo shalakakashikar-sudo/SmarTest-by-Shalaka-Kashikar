@@ -3,6 +3,9 @@
 import { GoogleGenAI, Type } from "https://esm.sh/@google/genai@^1.27.0";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
+// Fix: Declare Deno to address "Cannot find name 'Deno'" error in TypeScript environments that don't have Deno types globally available.
+declare const Deno: any;
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -37,7 +40,8 @@ const questionSchema = {
 
 async function generateWithFallback(prompt: string, schema: any, primaryModel: 'gemini-flash-latest' | 'gemini-2.5-pro', proConfig: any = {}) {
     // --- 1. Try Gemini First ---
-    const geminiApiKey = (Deno as any).env.get('GEMINI_API_KEY');
+    // Fix: Use Deno.env.get after declaring Deno to fix type error.
+    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
     if (geminiApiKey) {
         try {
             console.log(`Attempting Gemini with model ${primaryModel}`);
@@ -63,7 +67,8 @@ async function generateWithFallback(prompt: string, schema: any, primaryModel: '
     console.log("Gemini failed or was skipped. Falling back to Groq.");
 
     // --- 2. Fallback to Groq ---
-    const groqApiKey = (Deno as any).env.get('GROQ_API_KEY');
+    // Fix: Use Deno.env.get after declaring Deno to fix type error.
+    const groqApiKey = Deno.env.get('GROQ_API_KEY');
     if (groqApiKey) {
         try {
             console.log("Attempting Groq...");
@@ -90,7 +95,8 @@ async function generateWithFallback(prompt: string, schema: any, primaryModel: '
     console.log("Groq failed or was skipped. Falling back to OpenAI.");
 
     // --- 3. Fallback to OpenAI ---
-    const openaiApiKey = (Deno as any).env.get('OPENAI_API_KEY');
+    // Fix: Use Deno.env.get after declaring Deno to fix type error.
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     if (openaiApiKey) {
         try {
             console.log("Attempting OpenAI...");

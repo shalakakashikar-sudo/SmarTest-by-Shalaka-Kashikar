@@ -1,5 +1,5 @@
 
-import { supabase, supabaseAnonKey } from './supabase';
+import { supabase } from './supabase';
 import type { Question, EvaluationResult } from '../types';
 
 /**
@@ -19,12 +19,7 @@ export const aiService = {
     // Call the 'clever-endpoint' function for test evaluation.
     const functionName = 'clever-endpoint';
     const { data, error } = await supabase.functions.invoke(functionName, {
-      headers: {
-        'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ questions, answers }),
+      body: { questions, answers },
     });
 
     if (error) {
@@ -51,7 +46,8 @@ export const aiService = {
     }
     
     if (evaluationData.questionScores && evaluationData.questionScores.length === questions.length) {
-      const totalAwardedMarks = evaluationData.questionScores.reduce((sum, score) => sum + score.score, 0);
+      // The AI returns raw scores, so we can sum them up.
+      const totalAwardedMarks = evaluationData.questionScores.reduce((sum, score) => sum + (score.score || 0), 0);
       
       const totalPossibleMarks = questions.reduce((total, q) => {
         if (q.type === 'reading-comprehension' && q.comprehensionQuestions) {
@@ -60,10 +56,16 @@ export const aiService = {
         return total + (q.marks || 0);
       }, 0);
 
+      // Attach raw and total marks to the main object
+      evaluationData.totalAwardedMarks = totalAwardedMarks;
+      evaluationData.totalPossibleMarks = totalPossibleMarks;
+
+      // Calculate the overall percentage score
       evaluationData.overallScore = totalPossibleMarks > 0
         ? Math.round((totalAwardedMarks / totalPossibleMarks) * 100)
         : 0;
 
+      // Add maxMarks to each question score, keeping the raw awarded score.
       evaluationData.questionScores = evaluationData.questionScores.map((qScore, index) => {
         const question = questions[index];
         let maxMarks = question.marks;
@@ -71,12 +73,11 @@ export const aiService = {
         if (question.type === 'reading-comprehension' && question.comprehensionQuestions) {
           maxMarks = question.comprehensionQuestions.reduce((sum, cq) => sum + (cq.marks || 0), 0);
         }
-
-        const percentage = maxMarks > 0 ? Math.round((qScore.score / maxMarks) * 100) : 0;
         
-        return { ...qScore, score: percentage };
+        return { ...qScore, maxMarks: maxMarks };
       });
     }
+
 
     return evaluationData;
   },
@@ -101,12 +102,7 @@ export const aiService = {
 
     const functionName = params.isThinkingMode ? 'gemini-test-generation-pro' : 'gemini-test-generation-flash';
     const { data, error } = await supabase.functions.invoke(functionName, {
-      headers: {
-        'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(params),
+      body: params,
     });
 
     if (error) {
@@ -133,12 +129,7 @@ export const aiService = {
 
     const functionName = 'gemini-regenerate-question-flash';
     const { data, error } = await supabase.functions.invoke(functionName, {
-      headers: {
-        'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ question }),
+      body: { question },
     });
 
     if (error) {
@@ -166,12 +157,7 @@ export const aiService = {
 
     const functionName = 'gemini-tutor-flash';
     const { data, error } = await supabase.functions.invoke(functionName, {
-      headers: {
-        'apikey': supabaseAnonKey,
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ prompt, history }),
+      body: { prompt, history },
     });
 
     if (error) {

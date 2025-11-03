@@ -25,6 +25,9 @@ const SubmissionDetailView: React.FC<SubmissionDetailProps> = ({ test, submissio
       <div className="text-center bg-gray-50 rounded-lg p-6 mb-8 dark:bg-slate-700/50">
         <div className="text-lg font-medium text-gray-700 dark:text-gray-300">Overall Score</div>
         <div className={`text-5xl ${scoreColor} font-bold`}>{evaluation.overallScore}%</div>
+        <div className="text-xl text-gray-500 dark:text-gray-400 font-semibold mt-1">
+          ({evaluation.totalAwardedMarks ?? '...'} / {evaluation.totalPossibleMarks ?? '...'} marks)
+        </div>
       </div>
 
       <div className="space-y-6">
@@ -44,13 +47,25 @@ const SubmissionDetailView: React.FC<SubmissionDetailProps> = ({ test, submissio
 };
 
 const QuestionBreakdown: React.FC<{ question: Question, answer: any, score: any, index: number }> = ({ question, answer, score, index }) => {
-  const scoreColor = score.score >= 80 ? 'bg-green-500' : score.score >= 60 ? 'bg-yellow-500' : 'bg-red-500';
+  const percentage = score && typeof score.maxMarks !== 'undefined' && score.maxMarks > 0 
+    ? Math.round((score.score / score.maxMarks) * 100) 
+    : 0;
+  const scoreColor = percentage >= 80 ? 'bg-green-500' : percentage >= 60 ? 'bg-yellow-500' : 'bg-red-500';
 
   return (
     <div className="bg-gray-50 p-4 rounded-lg border dark:bg-slate-900/50 dark:border-slate-700">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between items-start mb-4">
             <h4 className="font-semibold text-gray-800 text-lg dark:text-slate-200">Question {index + 1}</h4>
-            <div className={`px-3 py-1 text-white text-sm font-bold rounded-full ${scoreColor}`}>{score.score}%</div>
+            <div className="text-right">
+                <div className={`inline-block px-3 py-1 text-white text-sm font-bold rounded-full ${scoreColor}`}>
+                    {percentage}%
+                </div>
+                {score && typeof score.maxMarks !== 'undefined' && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {score.score} / {score.maxMarks} marks
+                    </div>
+                )}
+            </div>
         </div>
         
         {question.type === 'reading-comprehension' && question.passage && (
@@ -77,7 +92,7 @@ const QuestionBreakdown: React.FC<{ question: Question, answer: any, score: any,
             </div>
             <div className="bg-blue-50 rounded-lg p-3 border border-blue-200 dark:bg-blue-900/30 dark:border-blue-800">
                 <h5 className="font-semibold text-blue-800 mb-2 dark:text-blue-300">AI Feedback</h5>
-                <p className="text-gray-700 text-sm dark:text-slate-300">{score.feedback}</p>
+                <p className="text-gray-700 text-sm dark:text-slate-300">{score?.feedback || 'Not available.'}</p>
             </div>
         </div>
     </div>
@@ -93,7 +108,7 @@ const DisplayAnswer: React.FC<{answer: any, question: Question}> = ({ answer, qu
                         <p className="font-medium text-gray-600 dark:text-gray-400">{compQ.question}</p>
                         <div 
                             className="text-gray-800 pl-2 border-l-2 border-gray-200 dark:text-slate-200 dark:border-slate-600"
-                            dangerouslySetInnerHTML={{ __html: answer[index] || `<span class="text-gray-400 italic">No answer provided</span>` }}
+                            dangerouslySetInnerHTML={{ __html: answer?.[index] || `<span class="text-gray-400 italic">No answer provided</span>` }}
                         />
                     </div>
                 ))}

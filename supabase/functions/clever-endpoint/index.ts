@@ -1,6 +1,10 @@
 // supabase/functions/clever-endpoint/index.ts
 import { GoogleGenAI, Type } from "https://esm.sh/@google/genai@^1.27.0";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+// Fix: Declare Deno to address "Cannot find name 'Deno'" error in TypeScript environments that don't have Deno types globally available.
+declare const Deno: any;
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
@@ -61,8 +65,8 @@ const evaluationSchema = {
 };
 async function generateWithFallback(prompt, schema, primaryModel, proConfig = {}) {
   // --- 1. Try Gemini First ---
-  // FIX: Cast Deno to any to resolve TypeScript error for 'env' property.
-  const geminiApiKey = (Deno as any).env.get('GEMINI_API_KEY');
+  // Fix: Use Deno.env.get after declaring Deno to fix type error.
+  const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
   if (geminiApiKey) {
     try {
       console.log(`Attempting Gemini with model ${primaryModel}`);
@@ -89,8 +93,8 @@ async function generateWithFallback(prompt, schema, primaryModel, proConfig = {}
   }
   console.log("Gemini failed or was skipped. Falling back to Groq.");
   // --- 2. Fallback to Groq ---
-  // FIX: Cast Deno to any to resolve TypeScript error for 'env' property.
-  const groqApiKey = (Deno as any).env.get('GROQ_API_KEY');
+  // Fix: Use Deno.env.get after declaring Deno to fix type error.
+  const groqApiKey = Deno.env.get('GROQ_API_KEY');
   if (groqApiKey) {
     try {
       console.log("Attempting Groq...");
@@ -126,8 +130,8 @@ async function generateWithFallback(prompt, schema, primaryModel, proConfig = {}
   }
   console.log("Groq failed or was skipped. Falling back to OpenAI.");
   // --- 3. Fallback to OpenAI ---
-  // FIX: Cast Deno to any to resolve TypeScript error for 'env' property.
-  const openaiApiKey = (Deno as any).env.get('OPENAI_API_KEY');
+  // Fix: Use Deno.env.get after declaring Deno to fix type error.
+  const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
   if (openaiApiKey) {
     try {
       console.log("Attempting OpenAI...");
@@ -172,10 +176,19 @@ serve(async (req)=>{
   try {
     const { questions, answers } = await req.json();
     const prompt = `
-      You are an expert AI Test Evaluator. Your task is to grade a student's test submission.
-      Evaluate the answers strictly based on the provided questions, correct answers, and marking schemes.
-      For each question, provide a specific score and constructive feedback.
-      Then, provide overall feedback, strengths, weaknesses, and suggestions.
+      You are an expert AI Test Evaluator, acting as a very strict and meticulous teacher. Your task is to grade a student's test submission with a high standard for correctness in all aspects.
+
+      **Primary Grading Criteria:**
+      - Evaluate the answers strictly based on the factual accuracy and completeness according to the provided questions, correct answers, and marking schemes.
+
+      **Secondary (but equally important) Grading Criteria:**
+      - **Punctuation:** Penalize for missing or incorrect punctuation (e.g., periods, commas, question marks).
+      - **Capitalization:** Penalize for incorrect capitalization (e.g., start of sentences, proper nouns).
+      - **Grammar and Spelling:** Penalize for grammatical errors, awkward phrasing, and spelling mistakes.
+      - **Clarity and Cohesion:** The answers must be clear, well-structured, and easy to understand.
+
+      For each question, provide a specific score and constructive feedback that explicitly mentions any grammatical, punctuation, or capitalization errors. Deduct marks for these errors where appropriate.
+      Then, provide overall feedback, strengths, weaknesses, and suggestions for improvement.
 
       Here is the test structure and the student's answers:
       ${JSON.stringify({
@@ -183,10 +196,10 @@ serve(async (req)=>{
       studentAnswers: answers
     }, null, 2)}
 
-      IMPORTANT:
+      **IMPORTANT INSTRUCTIONS:**
       - The 'questionScores' array in your response MUST have the same number of items as the 'questions' array in the input.
       - For reading comprehension questions, evaluate all sub-answers and provide a single total score and combined feedback for the main question. The total score should be the sum of marks for the sub-questions.
-      - Award marks precisely based on the provided 'marks' and 'markingScheme' for each question.
+      - Award marks precisely based on the provided 'marks' and 'markingScheme' for each question, **deducting marks for the grammatical and formatting errors mentioned above.**
       - Do not calculate the final percentage 'overallScore'; the client will do this. Set it to 0.
     `;
     const jsonResponseString = await generateWithFallback(prompt, evaluationSchema, 'gemini-flash-latest');

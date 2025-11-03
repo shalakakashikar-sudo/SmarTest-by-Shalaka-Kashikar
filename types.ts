@@ -54,17 +54,20 @@ export interface Test {
 }
 
 export interface QuestionScore {
-    score: number;
+    score: number; // Raw marks awarded for the question
     feedback: string;
+    maxMarks: number; // Maximum possible marks for the question
 }
 
 export interface EvaluationResult {
-    overallScore: number;
+    overallScore: number; // Overall score as a percentage
     feedback: string;
     suggestions: string;
     strengths: string;
     weaknesses: string;
     questionScores: QuestionScore[];
+    totalAwardedMarks: number;
+    totalPossibleMarks: number;
 }
 
 export interface TestResult {

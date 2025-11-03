@@ -3,6 +3,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// Fix: Declare Deno to address "Cannot find name 'Deno'" error in TypeScript environments that don't have Deno types globally available.
+declare const Deno: any;
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -10,7 +13,8 @@ const corsHeaders = {
 
 // Helper function to get env vars and throw a clear error if they are missing.
 function getRequiredEnv(key: string): string {
-  const value = (Deno as any).env.get(key);
+  // Fix: Use Deno.env.get after declaring Deno to fix type error.
+  const value = Deno.env.get(key);
   if (!value) {
     throw new Error(`Function failed: Missing required environment variable "${key}". Please set this in your Supabase project's Function Secrets.`);
   }

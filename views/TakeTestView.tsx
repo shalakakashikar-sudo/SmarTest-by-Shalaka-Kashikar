@@ -24,10 +24,68 @@ const MiniToolbar: React.FC<{ onFormat: (tag: 'b' | 'i' | 'u') => void }> = ({ o
 const TakeTestView: React.FC<TakeTestProps> = ({ test, onSubmitTest, navigateTo }) => {
   const { profile } = useAuth();
   const { addToast } = useToast();
-  const [answers, setAnswers] = useState<(string | Record<number, string>)[]>(() => Array(test.questions.length).fill(''));
+  
+  // Define a unique key for localStorage based on user and test ID.
+  const autoSaveKey = `smartest-autosave-${profile?.id}-${test.id}`;
+
+  const [answers, setAnswers] = useState<(string | Record<number, string>)[]>(() => {
+    // Attempt to load saved answers from localStorage on initial render.
+    try {
+      const savedAnswers = localStorage.getItem(autoSaveKey);
+      if (savedAnswers) {
+        const parsedAnswers = JSON.parse(savedAnswers);
+        if (Array.isArray(parsedAnswers) && parsedAnswers.length === test.questions.length) {
+          return parsedAnswers;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load answers from localStorage:', error);
+    }
+    // If no saved answers, initialize with an empty array.
+    return Array(test.questions.length).fill('');
+  });
+
   const [isLoading, setIsLoading] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(test.timer ? test.timer * 60 : null);
   const originalTitle = useRef(document.title);
+  
+  // Create a ref to hold the latest answers for the auto-save interval.
+  const answersRef = useRef(answers);
+  answersRef.current = answers; // Keep the ref updated on every render.
+  
+  const hasShownToast = useRef(false);
+
+  // Auto-save logic using useEffect and setInterval.
+  useEffect(() => {
+    const autoSaveInterval = 5000; // Save every 5 seconds.
+
+    // Check on mount if we restored data, and show a toast if we haven't already.
+    if (!hasShownToast.current) {
+        try {
+            const savedAnswers = localStorage.getItem(autoSaveKey);
+            if (savedAnswers) {
+                addToast('Your previous progress has been restored.', 'info');
+                hasShownToast.current = true;
+            }
+        } catch {}
+    }
+
+    const timerId = setInterval(() => {
+      try {
+        localStorage.setItem(autoSaveKey, JSON.stringify(answersRef.current));
+        if (!hasShownToast.current) {
+          addToast('Your progress is being saved automatically.', 'info');
+          hasShownToast.current = true;
+        }
+      } catch (error) {
+        console.error('Failed to auto-save answers:', error);
+        // Avoid spamming toasts on interval failures.
+      }
+    }, autoSaveInterval);
+
+    // Cleanup interval on component unmount.
+    return () => clearInterval(timerId);
+  }, [autoSaveKey, addToast]);
   
   // Anti-cheat logic
   useEffect(() => {
@@ -73,6 +131,10 @@ const TakeTestView: React.FC<TakeTestProps> = ({ test, onSubmitTest, navigateTo 
       };
 
       await dataService.saveTestResult(result);
+      
+      // Clear the auto-saved data from localStorage after successful submission.
+      localStorage.removeItem(autoSaveKey);
+
       addToast('Evaluation complete!', 'success');
       onSubmitTest(result);
     } catch (error: any) {
@@ -80,7 +142,7 @@ const TakeTestView: React.FC<TakeTestProps> = ({ test, onSubmitTest, navigateTo 
     } finally {
       setIsLoading(false);
     }
-  }, [test, answers, profile, addToast, onSubmitTest]);
+  }, [test, answers, profile, addToast, onSubmitTest, autoSaveKey]);
   
   // Timer logic
   useEffect(() => {

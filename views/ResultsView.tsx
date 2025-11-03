@@ -20,8 +20,11 @@ const ResultsView: React.FC<ResultsProps> = ({ result, navigateTo, onRetakeTest 
       </div>
       
       <div className="text-center mb-8">
-        <div className={`text-6xl ${scoreColor} font-bold mb-2`}>{evaluation.overallScore}%</div>
-        <h3 className="text-2xl font-semibold text-gray-800 dark:text-slate-200">Test Complete!</h3>
+        <div className={`text-6xl ${scoreColor} font-bold`}>{evaluation.overallScore}%</div>
+        <div className="text-2xl text-gray-600 dark:text-gray-400 font-semibold">
+          ({evaluation.totalAwardedMarks} / {evaluation.totalPossibleMarks} marks)
+        </div>
+        <h3 className="text-2xl font-semibold text-gray-800 dark:text-slate-200 mt-2">Test Complete!</h3>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -48,14 +51,18 @@ const ResultsView: React.FC<ResultsProps> = ({ result, navigateTo, onRetakeTest 
         <div className="bg-white border rounded-lg p-4 dark:bg-slate-900/50 dark:border-slate-700">
           <h4 className="font-semibold text-gray-800 mb-3 dark:text-slate-200">📊 Question-by-Question Breakdown</h4>
           <div className="space-y-3">
-            {evaluation.questionScores.map((score, index) => {
-                const qScoreColor = score.score >= 80 ? 'text-green-500 dark:text-green-400' : score.score >= 60 ? 'text-yellow-500 dark:text-yellow-400' : 'text-red-500 dark:text-red-400';
+            {evaluation.questionScores.map((qScore, index) => {
+                const percentage = qScore.maxMarks > 0 ? Math.round((qScore.score / qScore.maxMarks) * 100) : 0;
+                const qScoreColor = percentage >= 80 ? 'text-green-500 dark:text-green-400' : percentage >= 60 ? 'text-yellow-500 dark:text-yellow-400' : 'text-red-500 dark:text-red-400';
                 return (
                     <div key={index} className="flex justify-between items-start p-2 bg-gray-50 rounded dark:bg-slate-700">
                         <span className="font-medium dark:text-slate-200">Question {index + 1}</span>
                         <div className="text-right">
-                            <span className={`font-bold ${qScoreColor}`}>{score.score}%</span>
-                            <div className="text-sm text-gray-600 max-w-xs dark:text-slate-400">{score.feedback}</div>
+                            <span className={`font-bold text-lg ${qScoreColor}`}>{percentage}%</span>
+                            <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
+                                ({qScore.score} / {qScore.maxMarks})
+                            </span>
+                            <div className="text-sm text-gray-600 max-w-xs dark:text-slate-400 mt-1">{qScore.feedback}</div>
                         </div>
                     </div>
                 );

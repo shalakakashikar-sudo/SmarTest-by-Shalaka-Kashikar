@@ -1,47 +1,27 @@
 
+
 import { supabase } from './supabase';
+import { functionService } from './functionService';
 import type { Test, TestResult, EvaluationResult } from '../types';
 
 export const dataService = {
   async createTest(test: Test) {
-    const { data, error } = await supabase.functions.invoke('save-test', {
-      body: test,
-    });
-
-    if (error) throw error;
-    return data;
+    return await functionService.invoke('save-test', test);
   },
 
   async updateTest(test: Test) {
     if (!test.id) throw new Error("Test ID is required for updating.");
-    const { data, error } = await supabase.functions.invoke('save-test', {
-      body: test,
-    });
-
-    if (error) throw error;
-    return data;
+    return await functionService.invoke('save-test', test);
   },
 
   async deleteTest(testId: string) {
-    // FIX: Invoke a secure edge function to delete the test.
-    // This uses the service_role_key to bypass RLS policies that were
-    // causing "permission denied for table users" errors. The function
-    // includes its own security checks for ownership.
-    const { error } = await supabase.functions.invoke('delete-test', {
-      body: { testId },
-    });
-    if (error) throw error;
+    await functionService.invoke('delete-test', { testId });
     return true;
   },
 
   async getTests() {
-    // FIX: Invoke a secure edge function to fetch all tests.
-    // This bypasses the RLS policy that caused "permission denied" errors
-    // when loading the dashboard. The data mapping logic is now also
-    // handled inside the edge function.
-    const { data, error } = await supabase.functions.invoke('get-tests');
-    if (error) throw error;
-    return data as Test[];
+    const data = await functionService.invoke<Test[]>('get-tests');
+    return data;
   },
   
   async saveTestResult(result: TestResult) {
@@ -66,29 +46,13 @@ export const dataService = {
   },
 
   async getTestResults(testId: string) {
-    const { data, error } = await supabase.functions.invoke('get-submissions', {
-      body: { testId },
-    });
-    
-    if (error) {
-      // Supabase edge function errors can be tricky. The real error message
-      // from the function's Response object often gets wrapped.
-      // We will throw the original error message, which is now controlled by our edge function
-      // and will be more informative than a generic RLS error.
-      throw error;
-    }
-
-    return data as TestResult[];
+    const data = await functionService.invoke<TestResult[]>('get-submissions', { testId });
+    return data;
   },
 
   async getMyTestResults() {
-    // FIX: Invoke a secure edge function to fetch the student's own test results.
-    // This bypasses RLS policies that were incorrectly checking the 'users' table
-    // and causing "permission denied" errors for students.
-    const { data, error } = await supabase.functions.invoke('get-my-results');
-    
-    if (error) throw error;
-    return data as TestResult[];
+    const data = await functionService.invoke<TestResult[]>('get-my-results');
+    return data;
   },
 
   async deleteTestResult(resultId: string) {
@@ -105,15 +69,7 @@ export const dataService = {
     if (sessionError || !session) {
       throw new Error(sessionError?.message || 'User is not authenticated.');
     }
-
-    const { data, error } = await supabase.functions.invoke('admin-get-users');
-
-    if (error) {
-      console.error(`Error invoking Supabase function 'admin-get-users':`, error);
-      throw new Error(`Failed to load users: ${error.message}`);
-    }
-    
-    return data;
+    return await functionService.invoke('admin-get-users');
   },
 
   async deleteUser(userId: string) {
@@ -121,16 +77,7 @@ export const dataService = {
     if (sessionError || !session) {
       throw new Error(sessionError?.message || 'User is not authenticated.');
     }
-
-    const { error } = await supabase.functions.invoke('admin-delete-user', {
-      body: { userId },
-    });
-
-    if (error) {
-      console.error(`Error invoking Supabase function 'admin-delete-user':`, error);
-      throw new Error(`User deletion failed: ${error.message}`);
-    }
-    
+    await functionService.invoke('admin-delete-user', { userId });
     return true;
   },
 };

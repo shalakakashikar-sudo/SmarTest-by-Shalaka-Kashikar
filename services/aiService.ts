@@ -1,6 +1,8 @@
 
 
+
 import { supabase } from './supabase';
+import { functionService } from './functionService';
 import type { Question, EvaluationResult } from '../types';
 
 /**
@@ -17,17 +19,11 @@ export const aiService = {
       throw new Error(sessionError?.message || 'User is not authenticated.');
     }
 
-    // Call the 'clever-endpoint' function for test evaluation.
-    const functionName = 'clever-endpoint';
-    const { data, error } = await supabase.functions.invoke(functionName, {
-      body: { questions, answers },
+    // Call the 'clever-endpoint' function for test evaluation using the centralized service.
+    const data = await functionService.invoke('clever-endpoint', {
+      questions, answers
     });
-
-    if (error) {
-      console.error(`Error invoking Supabase function '${functionName}':`, error);
-      throw new Error(`AI evaluation service failed: ${error.message}`);
-    }
-
+    
     if (!data) {
         throw new Error('AI evaluation returned no data.');
     }

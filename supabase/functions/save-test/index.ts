@@ -18,6 +18,58 @@ function getRequiredEnv(key: string): string {
   return value;
 }
 
+/**
+ * A comprehensive mapping function to convert a question object from the frontend's
+ * camelCase format to the database's required snake_case format.
+ * This is crucial for preventing database errors due to mismatched column names.
+ * @param question - The question object from the frontend.
+ * @param testId - The ID of the parent test.
+ * @returns A new question object formatted for the database.
+ */
+function mapQuestionToDbFormat(question: any, testId: string) {
+  const {
+    id, // Exclude frontend-only temp IDs
+    tempId, // Exclude frontend-only temp IDs
+    correctAnswer,
+    expectedWordLimit,
+    markingScheme,
+    sampleAnswer,
+    comprehensionQuestions,
+    ...restOfQuestion
+  } = question;
+
+  const dbQuestion: any = {
+    ...restOfQuestion,
+    test_id: testId,
+  };
+
+  // Map all potentially camelCased fields to snake_case
+  if (correctAnswer !== undefined) dbQuestion.correct_answer = correctAnswer;
+  if (expectedWordLimit !== undefined && expectedWordLimit !== null) dbQuestion.expected_word_limit = expectedWordLimit;
+  if (markingScheme !== undefined) dbQuestion.marking_scheme = markingScheme;
+  if (sampleAnswer !== undefined) dbQuestion.sample_answer = sampleAnswer;
+  
+  // Recursively map sub-questions for reading comprehension
+  if (comprehensionQuestions && Array.isArray(comprehensionQuestions)) {
+    dbQuestion.comprehension_questions = comprehensionQuestions.map(cq => {
+      const {
+        correctAnswer: cqCorrectAnswer,
+        markingScheme: cqMarkingScheme,
+        sampleAnswer: cqSampleAnswer,
+        ...restOfCq
+      } = cq;
+      
+      const dbCq: any = { ...restOfCq };
+      if (cqCorrectAnswer !== undefined) dbCq.correct_answer = cqCorrectAnswer;
+      if (cqMarkingScheme !== undefined) dbCq.marking_scheme = cqMarkingScheme;
+      if (cqSampleAnswer !== undefined) dbCq.sample_answer = cqSampleAnswer;
+      return dbCq;
+    });
+  }
+
+  return dbQuestion;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -82,22 +134,10 @@ serve(async (req) => {
         .single();
       if (testError) throw testError;
 
+      // Atomically replace all questions for the test
       await adminClient.from('questions').delete().eq('test_id', test.id);
       
-      const questionsToInsert = test.questions.map((q: any) => {
-        const { id, comprehensionQuestions, sampleAnswer, ...questionData } = q;
-        const newQ: any = { ...questionData, test_id: test.id };
-        if (sampleAnswer) newQ.sample_answer = sampleAnswer;
-        if (comprehensionQuestions) {
-            newQ.comprehension_questions = comprehensionQuestions.map((cq: any) => {
-                const { sampleAnswer: cqSampleAnswer, ...cqRest } = cq;
-                const newCq: any = { ...cqRest };
-                if (cqSampleAnswer) newCq.sample_answer = cqSampleAnswer;
-                return newCq;
-            });
-        }
-        return newQ;
-      });
+      const questionsToInsert = test.questions.map((q: any) => mapQuestionToDbFormat(q, test.id));
 
       const { error: questionsError } = await adminClient.from('questions').insert(questionsToInsert);
       if (questionsError) throw questionsError;
@@ -113,24 +153,12 @@ serve(async (req) => {
         .single();
       if (testError) throw testError;
       
-      const questionsToInsert = test.questions.map((q: any) => {
-        const { comprehensionQuestions, sampleAnswer, ...rest } = q;
-        const newQ: any = { ...rest, test_id: testData.id };
-        if (sampleAnswer) newQ.sample_answer = sampleAnswer;
-        if (comprehensionQuestions) {
-            newQ.comprehension_questions = comprehensionQuestions.map((cq: any) => {
-                const { sampleAnswer: cqSampleAnswer, ...cqRest } = cq;
-                const newCq: any = { ...cqRest };
-                if (cqSampleAnswer) newCq.sample_answer = cqSampleAnswer;
-                return newCq;
-            });
-        }
-        return newQ;
-      });
+      const questionsToInsert = test.questions.map((q: any) => mapQuestionToDbFormat(q, testData.id));
 
       const { error: questionsError } = await adminClient.from('questions').insert(questionsToInsert);
       if (questionsError) {
-        await adminClient.from('tests').delete().eq('id', testData.id); // Rollback on failure
+        // Rollback test creation if questions fail to insert
+        await adminClient.from('tests').delete().eq('id', testData.id);
         throw questionsError;
       }
 

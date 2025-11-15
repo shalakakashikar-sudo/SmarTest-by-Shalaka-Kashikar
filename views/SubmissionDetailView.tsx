@@ -1,8 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import type { Test, TestResult, Question, EvaluationResult } from '../types';
-import { useAuth } from '../contexts/AuthContext';
-import { useToast } from '../contexts/ToastContext';
-import { dataService } from '../services/dataService';
+import React from 'react';
+import type { Test, TestResult, Question } from '../types';
 
 interface SubmissionDetailProps {
   test: Test;
@@ -11,52 +8,13 @@ interface SubmissionDetailProps {
 }
 
 const SubmissionDetailView: React.FC<SubmissionDetailProps> = ({ test, submission, navigateTo }) => {
-  const { profile } = useAuth();
-  const { addToast } = useToast();
-  const [isEditing, setIsEditing] = useState(false);
-  const [editableEvaluation, setEditableEvaluation] = useState<EvaluationResult>(submission.evaluation);
-  const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    setEditableEvaluation(submission.evaluation);
-    setIsEditing(false);
-  }, [submission]);
-
-  const { student_name, test_title } = submission;
-  const scoreColor = editableEvaluation.overallScore >= 80 ? 'text-green-500 dark:text-green-400' :
-                     editableEvaluation.overallScore >= 60 ? 'text-yellow-500 dark:text-yellow-400' : 'text-red-500 dark:text-red-400';
-  
-  const canEdit = profile?.role === 'teacher' || profile?.role === 'admin';
-
-  const handleSave = async () => {
-    if (!submission.id) {
-        addToast('Cannot save changes: Submission ID is missing.', 'error');
-        return;
-    }
-    setIsSaving(true);
-    try {
-        await dataService.updateTestResult(submission.id, editableEvaluation);
-        addToast('Feedback updated successfully!', 'success');
-        setIsEditing(false);
-    } catch (error: any) {
-        addToast(`Failed to save changes: ${error.message}`, 'error');
-    } finally {
-        setIsSaving(false);
-    }
-  };
-
-  const handleCancel = () => {
-    setEditableEvaluation(submission.evaluation); // Revert to original
-    setIsEditing(false);
-  };
-  
-  const handleEvaluationChange = (field: keyof EvaluationResult, value: string) => {
-    setEditableEvaluation(prev => ({ ...prev, [field]: value }));
-  };
+  const { evaluation, student_name, test_title } = submission;
+  const scoreColor = evaluation.overallScore >= 80 ? 'text-green-500 dark:text-green-400' :
+                     evaluation.overallScore >= 60 ? 'text-yellow-500 dark:text-yellow-400' : 'text-red-500 dark:text-red-400';
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6 dark:bg-slate-800">
-      <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
+      <div className="flex items-center justify-between mb-6">
         <div>
             <h2 className="text-2xl font-bold text-gray-800 dark:text-slate-100">🔍 Submission Details</h2>
             <p className="text-gray-600 dark:text-gray-400">Viewing results for <span className="font-medium">{student_name}</span> on "{test_title}"</p>
@@ -66,42 +24,14 @@ const SubmissionDetailView: React.FC<SubmissionDetailProps> = ({ test, submissio
       
       <div className="text-center bg-gray-50 rounded-lg p-6 mb-8 dark:bg-slate-700/50">
         <div className="text-lg font-medium text-gray-700 dark:text-gray-300">Overall Score</div>
-        <div className={`text-5xl ${scoreColor} font-bold`}>{editableEvaluation.overallScore}%</div>
-        <div className="text-xl text-gray-500 dark:text-gray-400 font-semibold mt-1">
-          ({editableEvaluation.totalAwardedMarks ?? '...'} / {editableEvaluation.totalPossibleMarks ?? '...'} marks)
+        <div className={`text-5xl ${scoreColor} font-bold`}>{evaluation.overallScore}%</div>
+        <div className="text-lg font-semibold text-gray-600 dark:text-gray-400">
+            {evaluation.totalAwardedMarks} / {evaluation.totalPossibleMarks} Marks
         </div>
       </div>
-      
-       <div className="space-y-6">
-        <div className="flex justify-between items-center border-b pb-2 dark:border-slate-700">
-            <h3 className="text-xl font-bold text-gray-800 dark:text-slate-200">AI-Generated Feedback</h3>
-            {canEdit && (
-                <div className="flex space-x-2">
-                    {isEditing ? (
-                        <>
-                            <button onClick={handleCancel} disabled={isSaving} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold px-4 py-1 rounded-lg text-sm dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-100">Cancel</button>
-                            <button onClick={handleSave} disabled={isSaving} className="bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-1 rounded-lg text-sm disabled:bg-green-400">
-                                {isSaving ? 'Saving...' : 'Save Changes'}
-                            </button>
-                        </>
-                    ) : (
-                        <button onClick={() => setIsEditing(true)} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-1 rounded-lg text-sm">
-                            Edit Feedback
-                        </button>
-                    )}
-                </div>
-            )}
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <EditableFeedbackCard title="💪 Strengths" value={editableEvaluation.strengths} isEditing={isEditing} onChange={(val) => handleEvaluationChange('strengths', val)} color="blue"/>
-          <EditableFeedbackCard title="📈 Areas for Improvement" value={editableEvaluation.weaknesses} isEditing={isEditing} onChange={(val) => handleEvaluationChange('weaknesses', val)} color="orange"/>
-        </div>
-      
-        <EditableFeedbackCard title="📝 Detailed Feedback" value={editableEvaluation.feedback} isEditing={isEditing} onChange={(val) => handleEvaluationChange('feedback', val)} color="gray"/>
-        <EditableFeedbackCard title="💡 Suggestions" value={editableEvaluation.suggestions} isEditing={isEditing} onChange={(val) => handleEvaluationChange('suggestions', val)} color="green"/>
-
-        <h3 className="text-xl font-bold text-gray-800 border-b pt-4 pb-2 dark:text-slate-200 dark:border-slate-700">Question Breakdown</h3>
+      <div className="space-y-6">
+        <h3 className="text-xl font-bold text-gray-800 border-b pb-2 dark:text-slate-200 dark:border-slate-700">Question Breakdown</h3>
         {test.questions.map((question, index) => (
           <QuestionBreakdown
             key={question.id || index}
@@ -116,50 +46,24 @@ const SubmissionDetailView: React.FC<SubmissionDetailProps> = ({ test, submissio
   );
 };
 
-const EditableFeedbackCard: React.FC<{title: string, value: string, isEditing: boolean, onChange: (value: string) => void, color: 'blue' | 'orange' | 'green' | 'gray'}> = ({title, value, isEditing, onChange, color}) => {
-    const colors = {
-        blue: { bg: 'bg-blue-50 dark:bg-blue-900/40', text: 'text-blue-800 dark:text-blue-300' },
-        orange: { bg: 'bg-orange-50 dark:bg-orange-900/40', text: 'text-orange-800 dark:text-orange-300' },
-        green: { bg: 'bg-green-50 dark:bg-green-900/40', text: 'text-green-800 dark:text-green-300' },
-        gray: { bg: 'bg-gray-50 dark:bg-slate-700/50', text: 'text-gray-800 dark:text-slate-200' },
-    };
-
-    return (
-        <div className={`${colors[color].bg} rounded-lg p-4`}>
-          <h4 className={`font-semibold ${colors[color].text} mb-2`}>{title}</h4>
-          {isEditing ? (
-              <textarea
-                  value={value}
-                  onChange={(e) => onChange(e.target.value)}
-                  className="w-full p-2 border rounded-lg dark:bg-slate-900 dark:border-slate-600 dark:text-white dark:placeholder-gray-400 focus:ring-indigo-500 focus:border-transparent text-sm"
-                  rows={4}
-              />
-          ) : (
-             <p className="text-gray-700 dark:text-slate-300 text-sm">{value}</p>
-          )}
-        </div>
-    );
-};
-
 const QuestionBreakdown: React.FC<{ question: Question, answer: any, score: any, index: number }> = ({ question, answer, score, index }) => {
-  const percentage = score && typeof score.maxMarks !== 'undefined' && score.maxMarks > 0 
-    ? Math.round((score.score / score.maxMarks) * 100) 
-    : 0;
-  const scoreColor = percentage >= 80 ? 'bg-green-500' : percentage >= 60 ? 'bg-yellow-500' : 'bg-red-500';
+    const percentage = score.maxMarks > 0 ? Math.round((score.score / score.maxMarks) * 100) : 0;
+    const scoreColor = percentage >= 80 ? 'text-green-500 dark:text-green-400' :
+                       percentage >= 60 ? 'text-yellow-500 dark:text-yellow-400' : 'text-red-500 dark:text-red-400';
 
   return (
     <div className="bg-gray-50 p-4 rounded-lg border dark:bg-slate-900/50 dark:border-slate-700">
         <div className="flex justify-between items-start mb-4">
-            <h4 className="font-semibold text-gray-800 text-lg dark:text-slate-200">Question {index + 1}</h4>
-            <div className="text-right">
-                <div className={`inline-block px-3 py-1 text-white text-sm font-bold rounded-full ${scoreColor}`}>
-                    {percentage}%
-                </div>
-                {score && typeof score.maxMarks !== 'undefined' && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        {score.score} / {score.maxMarks} marks
-                    </div>
+            <h4 className="font-semibold text-gray-800 text-lg dark:text-slate-200">
+                Question {index + 1}
+                {(question.type === 'short-answer' || question.type === 'long-answer') && question.expectedWordLimit && (
+                    <span className="text-sm font-normal text-gray-500 ml-2 dark:text-gray-400">
+                        (Word Limit: {question.expectedWordLimit})
+                    </span>
                 )}
+            </h4>
+            <div className={`text-right text-lg font-bold ${scoreColor}`}>
+                {score.score} / {score.maxMarks}
             </div>
         </div>
         
@@ -187,7 +91,7 @@ const QuestionBreakdown: React.FC<{ question: Question, answer: any, score: any,
             </div>
             <div className="bg-blue-50 rounded-lg p-3 border border-blue-200 dark:bg-blue-900/30 dark:border-blue-800">
                 <h5 className="font-semibold text-blue-800 mb-2 dark:text-blue-300">AI Feedback</h5>
-                <p className="text-gray-700 text-sm dark:text-slate-300">{score?.feedback || 'Not available.'}</p>
+                <p className="text-gray-700 text-sm dark:text-slate-300 whitespace-pre-wrap">{score.feedback}</p>
             </div>
         </div>
     </div>
@@ -198,15 +102,29 @@ const DisplayAnswer: React.FC<{answer: any, question: Question}> = ({ answer, qu
     if (question.type === 'reading-comprehension') {
         return (
             <div className="space-y-2">
-                {(question.comprehensionQuestions || []).map((compQ, index) => (
-                    <div key={index} className="text-sm">
-                        <p className="font-medium text-gray-600 dark:text-gray-400">{compQ.question}</p>
-                        <div 
-                            className="text-gray-800 pl-2 border-l-2 border-gray-200 dark:text-slate-200 dark:border-slate-600"
-                            dangerouslySetInnerHTML={{ __html: answer?.[index] || `<span class="text-gray-400 italic">No answer provided</span>` }}
-                        />
-                    </div>
-                ))}
+                {(question.comprehensionQuestions || []).map((compQ, index) => {
+                    const studentAnswer = answer[index];
+                    let display;
+
+                    if (compQ.type === 'multiple-choice') {
+                        const optionIndex = studentAnswer ? studentAnswer.charCodeAt(0) - 65 : -1;
+                        const selectedOption = compQ.options?.[optionIndex];
+                        display = <p className="text-gray-800 dark:text-slate-200">{studentAnswer}. {selectedOption || <span className="text-gray-400 italic">No answer provided</span>}</p>;
+                    } else if (compQ.type === 'true-false') {
+                        display = <p className="text-gray-800 dark:text-slate-200">{studentAnswer || <span className="text-gray-400 italic">No answer provided</span>}</p>;
+                    } else { // short-answer
+                        display = <div className="text-gray-800 dark:text-slate-200" dangerouslySetInnerHTML={{ __html: studentAnswer || `<span class="text-gray-400 italic">No answer provided</span>` }} />;
+                    }
+
+                    return (
+                        <div key={index} className="text-sm">
+                            <p className="font-medium text-gray-600 dark:text-gray-400">{compQ.question}</p>
+                            <div className="pl-2 border-l-2 border-gray-200 dark:border-slate-600">
+                                {display}
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
         );
     }

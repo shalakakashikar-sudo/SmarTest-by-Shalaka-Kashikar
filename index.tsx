@@ -3,7 +3,8 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
-const rootElement = document.getElementById('root');
+// FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
+const rootElement = (window as any).document.getElementById('root');
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }

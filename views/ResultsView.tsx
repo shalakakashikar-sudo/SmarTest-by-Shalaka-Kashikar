@@ -19,31 +19,31 @@ const ResultsView: React.FC<ResultsProps> = ({ result, navigateTo, onRetakeTest 
         <button onClick={() => navigateTo('dashboard')} className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg dark:bg-slate-600 dark:hover:bg-slate-500">← Back to Dashboard</button>
       </div>
       
-      <div className="text-center mb-8">
-        <div className={`text-6xl ${scoreColor} font-bold`}>{evaluation.overallScore}%</div>
-        <div className="text-2xl text-gray-600 dark:text-gray-400 font-semibold">
-          ({evaluation.totalAwardedMarks} / {evaluation.totalPossibleMarks} marks)
-        </div>
-        <h3 className="text-2xl font-semibold text-gray-800 dark:text-slate-200 mt-2">Test Complete!</h3>
+      <div className="text-center mb-8 bg-gray-50 dark:bg-slate-700/50 p-6 rounded-lg">
+        <p className="text-lg text-gray-600 dark:text-gray-400">Your Score</p>
+        <div className={`text-6xl ${scoreColor} font-bold mb-2`}>{evaluation.overallScore}%</div>
+        <h3 className="text-2xl font-semibold text-gray-800 dark:text-slate-200">
+            {evaluation.totalAwardedMarks} / {evaluation.totalPossibleMarks} Marks
+        </h3>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div className="bg-blue-50 rounded-lg p-4 dark:bg-blue-900/40">
           <h4 className="font-semibold text-blue-800 mb-2 dark:text-blue-300">💪 Strengths</h4>
-          <p className="text-gray-700 dark:text-slate-300">{evaluation.strengths}</p>
+          <p className="text-gray-700 dark:text-slate-300 whitespace-pre-wrap">{evaluation.strengths}</p>
         </div>
         <div className="bg-orange-50 rounded-lg p-4 dark:bg-orange-900/40">
           <h4 className="font-semibold text-orange-800 mb-2 dark:text-orange-300">📈 Areas for Improvement</h4>
-          <p className="text-gray-700 dark:text-slate-300">{evaluation.weaknesses}</p>
+          <p className="text-gray-700 dark:text-slate-300 whitespace-pre-wrap">{evaluation.weaknesses}</p>
         </div>
       </div>
       
       <div className="bg-gray-50 rounded-lg p-6 mb-6 dark:bg-slate-700/50">
         <h4 className="font-semibold text-gray-800 mb-3 dark:text-slate-200">📝 Detailed Feedback</h4>
-        <p className="text-gray-700 mb-4 dark:text-slate-300">{evaluation.feedback}</p>
+        <p className="text-gray-700 mb-4 dark:text-slate-300 whitespace-pre-wrap">{evaluation.feedback}</p>
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 dark:bg-green-900/40 dark:border-green-800">
           <h5 className="font-semibold text-green-800 mb-2 dark:text-green-300">💡 Suggestions</h5>
-          <p className="text-green-700 dark:text-green-400">{evaluation.suggestions}</p>
+          <p className="text-green-700 dark:text-green-400 whitespace-pre-wrap">{evaluation.suggestions}</p>
         </div>
       </div>
       
@@ -51,19 +51,17 @@ const ResultsView: React.FC<ResultsProps> = ({ result, navigateTo, onRetakeTest 
         <div className="bg-white border rounded-lg p-4 dark:bg-slate-900/50 dark:border-slate-700">
           <h4 className="font-semibold text-gray-800 mb-3 dark:text-slate-200">📊 Question-by-Question Breakdown</h4>
           <div className="space-y-3">
-            {evaluation.questionScores.map((qScore, index) => {
-                const percentage = qScore.maxMarks > 0 ? Math.round((qScore.score / qScore.maxMarks) * 100) : 0;
-                const qScoreColor = percentage >= 80 ? 'text-green-500 dark:text-green-400' : percentage >= 60 ? 'text-yellow-500 dark:text-yellow-400' : 'text-red-500 dark:text-red-400';
+            {evaluation.questionScores.map((score, index) => {
+                const percentage = score.maxMarks > 0 ? Math.round((score.score / score.maxMarks) * 100) : 0;
+                const qScoreColor = percentage >= 80 ? 'text-green-500 dark:text-green-400' :
+                                    percentage >= 60 ? 'text-yellow-500 dark:text-yellow-400' : 'text-red-500 dark:text-red-400';
                 return (
-                    <div key={index} className="flex justify-between items-start p-2 bg-gray-50 rounded dark:bg-slate-700">
-                        <span className="font-medium dark:text-slate-200">Question {index + 1}</span>
-                        <div className="text-right">
-                            <span className={`font-bold text-lg ${qScoreColor}`}>{percentage}%</span>
-                            <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
-                                ({qScore.score} / {qScore.maxMarks})
-                            </span>
-                            <div className="text-sm text-gray-600 max-w-xs dark:text-slate-400 mt-1">{qScore.feedback}</div>
+                    <div key={index} className="p-3 bg-gray-50 rounded dark:bg-slate-800/60 border dark:border-slate-700/50">
+                        <div className="flex justify-between items-start">
+                            <span className="font-medium dark:text-slate-200">Question {index + 1}</span>
+                            <span className={`text-lg font-bold ${qScoreColor}`}>{score.score} / {score.maxMarks}</span>
                         </div>
+                        <p className="text-sm text-gray-600 mt-1 dark:text-slate-400 whitespace-pre-wrap">{score.feedback}</p>
                     </div>
                 );
             })}

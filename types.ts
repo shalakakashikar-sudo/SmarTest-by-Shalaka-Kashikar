@@ -16,10 +16,12 @@ export type QuestionType =
 
 export interface ComprehensionQuestion {
   question: string;
-  sampleAnswer: string;
+  sampleAnswer?: string;
   type: 'short-answer' | 'multiple-choice' | 'true-false';
   marks: number;
   markingScheme?: string | null;
+  options?: string[];
+  correctAnswer?: string;
 }
 
 export interface Question {
@@ -39,6 +41,7 @@ export interface Question {
   comprehensionQuestions?: ComprehensionQuestion[];
   expectedWordLimit?: number | null;
   markingScheme?: string | null;
+  sampleAnswer?: string | null;
 }
 
 export interface Test {
@@ -54,20 +57,23 @@ export interface Test {
 }
 
 export interface QuestionScore {
-    score: number; // Raw marks awarded for the question
+    score: number;
     feedback: string;
-    maxMarks: number; // Maximum possible marks for the question
+    // FIX: Add optional `maxMarks` property to resolve type errors in ResultsView.
+    // This property is added by the aiService during evaluation.
+    maxMarks?: number;
 }
 
 export interface EvaluationResult {
-    overallScore: number; // Overall score as a percentage
+    overallScore: number;
     feedback: string;
     suggestions: string;
     strengths: string;
     weaknesses: string;
     questionScores: QuestionScore[];
-    totalAwardedMarks: number;
-    totalPossibleMarks: number;
+    // FIX: Add optional properties to store total marks, resolving type errors in aiService.
+    totalAwardedMarks?: number;
+    totalPossibleMarks?: number;
 }
 
 export interface TestResult {

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { aiService } from '../services/aiService';
@@ -21,92 +22,115 @@ const MiniToolbar: React.FC<{ onFormat: (tag: 'b' | 'i' | 'u') => void }> = ({ o
     );
 };
 
+const WordCounter: React.FC<{ text: string; limit?: number | null }> = ({ text, limit }) => {
+    const wordCount = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+    const isOverLimit = limit && wordCount > limit;
+    return (
+        <div className={`text-right text-xs mt-1 ${isOverLimit ? 'text-red-500 font-bold' : 'text-gray-500 dark:text-gray-400'}`}>
+            Word Count: {wordCount}{limit ? ` / ${limit}` : ''}
+        </div>
+    );
+};
+
 const TakeTestView: React.FC<TakeTestProps> = ({ test, onSubmitTest, navigateTo }) => {
   const { profile } = useAuth();
   const { addToast } = useToast();
   
-  // Define a unique key for localStorage based on user and test ID.
-  const autoSaveKey = `smartest-autosave-${profile?.id}-${test.id}`;
+  const autoSaveKey = `smartest-autosave-test-${profile?.id}-${test.id}`;
 
-  const [answers, setAnswers] = useState<(string | Record<number, string>)[]>(() => {
-    // Attempt to load saved answers from localStorage on initial render.
+  const [answers, setAnswers] = useState<(string | Record<number, string>)[]>(() => Array(test.questions.length).fill(''));
+  const [endTime, setEndTime] = useState<number | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(test.timer ? test.timer * 60 : null);
+  const [isLoading, setIsLoading] = useState(false);
+  // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
+  const originalTitle = useRef((window as any).document.title);
+  
+  const stateRef = useRef({ answers, endTime });
+  stateRef.current = { answers, endTime };
+
+  const hasShownToast = useRef(false);
+
+  // Initialize state from localStorage or set up new test session
+  useEffect(() => {
     try {
-      const savedAnswers = localStorage.getItem(autoSaveKey);
-      if (savedAnswers) {
-        const parsedAnswers = JSON.parse(savedAnswers);
-        if (Array.isArray(parsedAnswers) && parsedAnswers.length === test.questions.length) {
-          return parsedAnswers;
+      const savedData = localStorage.getItem(autoSaveKey);
+      if (savedData) {
+        const { savedAnswers, savedEndTime } = JSON.parse(savedData);
+        if (Array.isArray(savedAnswers) && savedAnswers.length === test.questions.length && typeof savedEndTime === 'number') {
+          setAnswers(savedAnswers);
+          setEndTime(savedEndTime);
+          const remaining = Math.max(0, Math.floor((savedEndTime - Date.now()) / 1000));
+          setTimeRemaining(remaining);
+          
+          if (!hasShownToast.current) {
+            addToast('Your previous progress has been restored.', 'info');
+            hasShownToast.current = true;
+          }
+          return; // Exit if we restored a draft
         }
       }
     } catch (error) {
-      console.error('Failed to load answers from localStorage:', error);
+      console.error('Failed to load test draft from localStorage:', error);
     }
-    // If no saved answers, initialize with an empty array.
-    return Array(test.questions.length).fill('');
-  });
+    
+    // If no valid draft, set up a new session
+    if (test.timer) {
+      const newEndTime = Date.now() + test.timer * 60 * 1000;
+      setEndTime(newEndTime);
+      setTimeRemaining(test.timer * 60);
+    }
+  }, [autoSaveKey, test.questions.length, test.timer, addToast]);
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState(test.timer ? test.timer * 60 : null);
-  const originalTitle = useRef(document.title);
-  
-  // Create a ref to hold the latest answers for the auto-save interval.
-  const answersRef = useRef(answers);
-  answersRef.current = answers; // Keep the ref updated on every render.
-  
-  const hasShownToast = useRef(false);
-
-  // Auto-save logic using useEffect and setInterval.
+  // Auto-save logic
   useEffect(() => {
-    const autoSaveInterval = 5000; // Save every 5 seconds.
-
-    // Check on mount if we restored data, and show a toast if we haven't already.
-    if (!hasShownToast.current) {
-        try {
-            const savedAnswers = localStorage.getItem(autoSaveKey);
-            if (savedAnswers) {
-                addToast('Your previous progress has been restored.', 'info');
-                hasShownToast.current = true;
-            }
-        } catch {}
-    }
-
-    const timerId = setInterval(() => {
+    if (endTime === null && !test.timer) return; // Don't save for untimed tests without a start time
+    
+    const intervalId = setInterval(() => {
       try {
-        localStorage.setItem(autoSaveKey, JSON.stringify(answersRef.current));
+        const { answers, endTime } = stateRef.current;
+        localStorage.setItem(autoSaveKey, JSON.stringify({ savedAnswers: answers, savedEndTime: endTime }));
         if (!hasShownToast.current) {
           addToast('Your progress is being saved automatically.', 'info');
           hasShownToast.current = true;
         }
       } catch (error) {
-        console.error('Failed to auto-save answers:', error);
-        // Avoid spamming toasts on interval failures.
+        console.error('Failed to auto-save test answers:', error);
       }
-    }, autoSaveInterval);
+    }, 5000); // Save every 5 seconds
 
-    // Cleanup interval on component unmount.
-    return () => clearInterval(timerId);
-  }, [autoSaveKey, addToast]);
+    return () => clearInterval(intervalId);
+  }, [autoSaveKey, endTime, test.timer, addToast]);
   
   // Anti-cheat logic
   useEffect(() => {
     const handleContextmenu = (e: MouseEvent) => e.preventDefault();
     const handleCopy = (e: ClipboardEvent) => e.preventDefault();
     const handleVisibilityChange = () => {
-        if (document.hidden) addToast('Tab switching detected. Please remain on the test page.', 'warning');
+        // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
+        if ((window as any).document.hidden) addToast('Tab switching detected. Please remain on the test page.', 'warning');
     };
 
-    document.addEventListener('contextmenu', handleContextmenu);
-    document.addEventListener('copy', handleCopy);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    document.body.classList.add('select-none');
+    // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
+    (window as any).document.addEventListener('contextmenu', handleContextmenu);
+    // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
+    (window as any).document.addEventListener('copy', handleCopy);
+    // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
+    (window as any).document.addEventListener('visibilitychange', handleVisibilityChange);
+    // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
+    (window as any).document.body.classList.add('select-none');
     addToast('Anti-cheat protection is active.', 'info');
     
     return () => {
-      document.removeEventListener('contextmenu', handleContextmenu);
-      document.removeEventListener('copy', handleCopy);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      document.body.classList.remove('select-none');
-      document.title = originalTitle.current;
+      // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
+      (window as any).document.removeEventListener('contextmenu', handleContextmenu);
+      // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
+      (window as any).document.removeEventListener('copy', handleCopy);
+      // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
+      (window as any).document.removeEventListener('visibilitychange', handleVisibilityChange);
+      // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
+      (window as any).document.body.classList.remove('select-none');
+      // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
+      (window as any).document.title = originalTitle.current;
     };
   }, [addToast]);
 
@@ -115,24 +139,27 @@ const TakeTestView: React.FC<TakeTestProps> = ({ test, onSubmitTest, navigateTo 
       addToast('Error: User not found.', 'error');
       return;
     }
+    
+    // FIX: Use ref to get the latest answers, making this callback stable
+    // and preventing it from causing the timer effect to re-run on every keystroke.
+    const currentAnswers = stateRef.current.answers;
 
     setIsLoading(true);
     addToast('Submitting your test for AI evaluation...', 'info');
     try {
-      const evaluation = await aiService.evaluateTest(test.questions, answers);
+      const evaluation = await aiService.evaluateTest(test.questions, currentAnswers);
       
       const result: TestResult = {
         test_id: test.id!,
         test_title: test.title,
         student_id: profile.id,
         student_name: profile.full_name,
-        answers: answers,
+        answers: currentAnswers,
         evaluation: evaluation,
       };
 
       await dataService.saveTestResult(result);
       
-      // Clear the auto-saved data from localStorage after successful submission.
       localStorage.removeItem(autoSaveKey);
 
       addToast('Evaluation complete!', 'success');
@@ -142,21 +169,27 @@ const TakeTestView: React.FC<TakeTestProps> = ({ test, onSubmitTest, navigateTo 
     } finally {
       setIsLoading(false);
     }
-  }, [test, answers, profile, addToast, onSubmitTest, autoSaveKey]);
+  }, [test, profile, addToast, onSubmitTest, autoSaveKey]);
   
   // Timer logic
   useEffect(() => {
-    if (timeRemaining === null) return;
-    
-    if (timeRemaining <= 0) {
-      addToast('Time is up! Submitting your test automatically.', 'warning');
-      handleSubmit();
-      return;
-    }
+    if (endTime === null) return; // Do nothing if the test is not timed.
 
-    const timerId = setInterval(() => setTimeRemaining(t => t! - 1), 1000);
+    const timerId = setInterval(() => {
+      const remaining = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+      setTimeRemaining(remaining);
+
+      if (remaining <= 0) {
+        clearInterval(timerId); // Stop the timer
+        addToast('Time is up! Submitting your test automatically.', 'warning');
+        handleSubmit(); // Call stable submit function
+      }
+    }, 1000);
+
     return () => clearInterval(timerId);
-  }, [timeRemaining, handleSubmit, addToast]);
+    // FIX: This effect now only depends on stable values, so it won't be
+    // reset when the student types, fixing the pausing timer bug.
+  }, [endTime, handleSubmit, addToast]);
 
 
   const updateAnswer = (questionIndex: number, answer: string | Record<number, string>) => {
@@ -220,10 +253,13 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
     ) => (tag: 'b' | 'i' | 'u') => {
         const textarea = ref.current;
         if (!textarea) return;
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
+        // FIX: Cast `textarea` to `any` to bypass TS errors for missing DOM properties.
+        const start = (textarea as any).selectionStart;
+        // FIX: Cast `textarea` to `any` to bypass TS errors for missing DOM properties.
+        const end = (textarea as any).selectionEnd;
         if (start === end) return;
-        const value = textarea.value;
+        // FIX: Cast `textarea` to `any` to bypass TS errors for missing DOM properties.
+        const value = (textarea as any).value;
         const selectedText = value.substring(start, end);
         const newValue = `${value.substring(0, start)}<${tag}>${selectedText}</${tag}>${value.substring(end)}`;
         callback(newValue);
@@ -242,7 +278,8 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
                 <div className="space-y-2">
                     {question.options?.map((opt, i) => (
                         <label key={i} className="flex items-center space-x-2 p-2 hover:bg-gray-100 dark:hover:bg-slate-600 rounded cursor-pointer">
-                            <input type="radio" name={`question-${index}`} value={String.fromCharCode(65+i)} onChange={e => onAnswerChange(index, e.target.value)} checked={answer === String.fromCharCode(65+i)} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
+                            {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                            <input type="radio" name={`question-${index}`} value={String.fromCharCode(65+i)} onChange={e => onAnswerChange(index, (e.target as any).value)} checked={answer === String.fromCharCode(65+i)} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
                             <span className="dark:text-slate-200">{String.fromCharCode(65 + i)}. {opt}</span>
                         </label>
                     ))}
@@ -253,11 +290,13 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
             answerInput = (
                 <div className="space-y-2">
                      <label className="flex items-center space-x-2 p-2 hover:bg-gray-100 dark:hover:bg-slate-600 rounded cursor-pointer">
-                        <input type="radio" name={`question-${index}`} value="True" onChange={e => onAnswerChange(index, e.target.value)} checked={answer === 'True'} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
+                        {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                        <input type="radio" name={`question-${index}`} value="True" onChange={e => onAnswerChange(index, (e.target as any).value)} checked={answer === 'True'} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
                         <span className="dark:text-slate-200">True</span>
                     </label>
                      <label className="flex items-center space-x-2 p-2 hover:bg-gray-100 dark:hover:bg-slate-600 rounded cursor-pointer">
-                        <input type="radio" name={`question-${index}`} value="False" onChange={e => onAnswerChange(index, e.target.value)} checked={answer === 'False'} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
+                        {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                        <input type="radio" name={`question-${index}`} value="False" onChange={e => onAnswerChange(index, (e.target as any).value)} checked={answer === 'False'} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
                         <span className="dark:text-slate-200">False</span>
                     </label>
                 </div>
@@ -267,7 +306,9 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
             answerInput = (
                 <>
                     <MiniToolbar onFormat={handleFormat(answerTextareaRef, (newValue) => onAnswerChange(index, newValue))} />
-                    <textarea ref={answerTextareaRef} className={commonTextareaClasses} rows={3} placeholder="Enter your answer" value={typeof answer === 'string' ? answer : ''} onChange={e => onAnswerChange(index, e.target.value)} />
+                    {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                    <textarea ref={answerTextareaRef} className={commonTextareaClasses} rows={3} placeholder="Enter your answer" value={typeof answer === 'string' ? answer : ''} onChange={e => onAnswerChange(index, (e.target as any).value)} />
+                    <WordCounter text={typeof answer === 'string' ? answer : ''} limit={question.expectedWordLimit} />
                 </>
             );
             break;
@@ -275,7 +316,9 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
             answerInput = (
                 <>
                     <MiniToolbar onFormat={handleFormat(answerTextareaRef, (newValue) => onAnswerChange(index, newValue))} />
-                    <textarea ref={answerTextareaRef} className={commonTextareaClasses} rows={6} placeholder="Write your detailed answer here" value={typeof answer === 'string' ? answer : ''} onChange={e => onAnswerChange(index, e.target.value)} />
+                    {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                    <textarea ref={answerTextareaRef} className={commonTextareaClasses} rows={6} placeholder="Write your detailed answer here" value={typeof answer === 'string' ? answer : ''} onChange={e => onAnswerChange(index, (e.target as any).value)} />
+                    <WordCounter text={typeof answer === 'string' ? answer : ''} limit={question.expectedWordLimit} />
                 </>
             );
             break;
@@ -288,23 +331,65 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
                     </div>
                     <h5 className="font-semibold text-gray-800 mb-2 dark:text-slate-200">Comprehension Questions:</h5>
                     <div className="space-y-4">
-                    {(question.comprehensionQuestions || []).map((compQ, compIndex) => (
-                        <div key={compIndex} className="bg-white p-3 rounded border dark:bg-slate-900 dark:border-slate-700">
-                            <div className="flex justify-between items-center mb-2">
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{compIndex + 1}. {compQ.question}</label>
-                                <span className="text-xs text-gray-500 dark:text-gray-400">[{compQ.marks} marks]</span>
+                    {(question.comprehensionQuestions || []).map((compQ, compIndex) => {
+                        const compAnswer = (typeof answer === 'object' && answer[compIndex]) || '';
+                        let compAnswerInput;
+
+                        if (compQ.type === 'multiple-choice') {
+                            compAnswerInput = (
+                                <div className="space-y-1 mt-2">
+                                    {compQ.options?.map((opt, i) => (
+                                        <label key={i} className="flex items-center space-x-2 p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded cursor-pointer">
+                                            {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                                            <input type="radio" name={`question-${index}-${compIndex}`} value={String.fromCharCode(65 + i)} onChange={e => handleComprehensionAnswer(compIndex, (e.target as any).value)} checked={compAnswer === String.fromCharCode(65 + i)} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
+                                            <span className="dark:text-slate-300 text-sm">{String.fromCharCode(65 + i)}. {opt}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            );
+                        } else if (compQ.type === 'true-false') {
+                            compAnswerInput = (
+                                <div className="space-y-1 mt-2">
+                                    <label className="flex items-center space-x-2 p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded cursor-pointer">
+                                        {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                                        <input type="radio" name={`question-${index}-${compIndex}`} value="True" onChange={e => handleComprehensionAnswer(compIndex, (e.target as any).value)} checked={compAnswer === 'True'} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
+                                        <span className="dark:text-slate-300 text-sm">True</span>
+                                    </label>
+                                    <label className="flex items-center space-x-2 p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded cursor-pointer">
+                                        {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                                        <input type="radio" name={`question-${index}-${compIndex}`} value="False" onChange={e => handleComprehensionAnswer(compIndex, (e.target as any).value)} checked={compAnswer === 'False'} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
+                                        <span className="dark:text-slate-300 text-sm">False</span>
+                                    </label>
+                                </div>
+                            );
+                        } else { // short-answer
+                            compAnswerInput = (
+                                <>
+                                    <MiniToolbar onFormat={handleFormat({ current: compAnswerRefs.current[compIndex] }, (newValue) => handleComprehensionAnswer(compIndex, newValue))} />
+                                    <textarea
+                                        ref={el => { compAnswerRefs.current[compIndex] = el }}
+                                        className={`${commonTextareaClasses} text-sm`}
+                                        rows={2}
+                                        placeholder="Enter your answer"
+                                        value={compAnswer}
+                                        // FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue.
+                                        onChange={e => handleComprehensionAnswer(compIndex, (e.target as any).value)}
+                                    />
+                                    <WordCounter text={compAnswer} />
+                                </>
+                            );
+                        }
+                        
+                        return (
+                            <div key={compIndex} className="bg-white p-3 rounded border dark:bg-slate-900 dark:border-slate-700">
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{compIndex + 1}. {compQ.question}</label>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">[{compQ.marks} marks]</span>
+                                </div>
+                                {compAnswerInput}
                             </div>
-                            <MiniToolbar onFormat={handleFormat({ current: compAnswerRefs.current[compIndex] }, (newValue) => handleComprehensionAnswer(compIndex, newValue))} />
-                            <textarea 
-                                ref={el => { compAnswerRefs.current[compIndex] = el }} 
-                                className={commonTextareaClasses} 
-                                rows={2} 
-                                placeholder="Enter your answer" 
-                                value={(typeof answer === 'object' && answer[compIndex]) || ''} 
-                                onChange={e => handleComprehensionAnswer(compIndex, e.target.value)} 
-                            />
-                        </div>
-                    ))}
+                        );
+                    })}
                     </div>
                 </div>
             );

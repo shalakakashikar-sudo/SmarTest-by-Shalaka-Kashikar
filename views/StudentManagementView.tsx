@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { dataService } from '../services/dataService';
 import { useAuth } from '../contexts/AuthContext';
@@ -90,7 +91,8 @@ const UserManagementView: React.FC<UserManagementProps> = ({ navigateTo }) => {
           <input
             type="text"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            // FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue.
+            onChange={(e) => setSearchTerm((e.target as any).value)}
             placeholder="🔎 Search by name or username..."
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:placeholder-gray-400"
           />

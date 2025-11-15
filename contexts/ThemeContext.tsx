@@ -16,14 +16,16 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (savedTheme) {
       return savedTheme;
     }
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    // FIX: Cast `window` to `any` to access `matchMedia` property, resolving TS error.
+    if ((window as any).matchMedia && (window as any).matchMedia('(prefers-color-scheme: dark)').matches) {
       return 'dark';
     }
     return 'light';
   });
 
   useEffect(() => {
-    const root = window.document.documentElement;
+    // FIX: Cast `window` to `any` to access `document` property, resolving TS error.
+    const root = (window as any).document.documentElement;
     if (theme === 'dark') {
       root.classList.add('dark');
     } else {

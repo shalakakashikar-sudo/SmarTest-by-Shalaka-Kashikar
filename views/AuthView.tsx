@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { authService } from '../services/authService';
 import { useToast } from '../contexts/ToastContext';
@@ -128,7 +129,8 @@ const AuthView: React.FC = () => {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">Role</label>
-              <select value={loginRole} onChange={e => setLoginRole(e.target.value as Role | '')} className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:focus:ring-indigo-400">
+              {/* FIX: Cast event target to 'any' to access the 'value' property, resolving a TypeScript type error. */}
+              <select value={loginRole} onChange={e => setLoginRole((e.target as any).value as Role | '')} className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:focus:ring-indigo-400">
                 <option value="" disabled>Select your role</option>
                 <option value="student">Student</option>
                 <option value="teacher">Teacher</option>
@@ -137,11 +139,13 @@ const AuthView: React.FC = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">{loginIdentifierProps.label}</label>
-              <input type={loginIdentifierProps.type} value={loginUsername} onChange={e => setLoginUsername(e.target.value)} disabled={!loginRole} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed transition dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:focus:ring-indigo-400 dark:disabled:bg-slate-600" placeholder={loginIdentifierProps.placeholder}/>
+              {/* FIX: Cast event target to 'any' to access the 'value' property, resolving a TypeScript type error. */}
+              <input type={loginIdentifierProps.type} value={loginUsername} onChange={e => setLoginUsername((e.target as any).value)} disabled={!loginRole} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed transition dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:focus:ring-indigo-400 dark:disabled:bg-slate-600" placeholder={loginIdentifierProps.placeholder}/>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">Password</label>
-              <input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:focus:ring-indigo-400" placeholder="Enter your password"/>
+              {/* FIX: Cast event target to 'any' to access the 'value' property, resolving a TypeScript type error. */}
+              <input type="password" value={loginPassword} onChange={e => setLoginPassword((e.target as any).value)} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:focus:ring-indigo-400" placeholder="Enter your password"/>
             </div>
             <button type="submit" disabled={loading || !loginRole || !loginUsername || !loginPassword} className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white p-3 rounded-lg font-medium hover:from-indigo-700 hover:to-violet-700 disabled:from-indigo-400 disabled:to-violet-400 disabled:cursor-not-allowed transition-all duration-300 ease-in-out transform hover:scale-105">
               {loading ? 'Logging in...' : 'Login'}
@@ -153,7 +157,8 @@ const AuthView: React.FC = () => {
           <form onSubmit={handleRegister} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">Role</label>
-              <select value={registerRole} onChange={e => setRegisterRole(e.target.value as Role | '')} className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:focus:ring-indigo-400">
+              {/* FIX: Cast event target to 'any' to access the 'value' property, resolving a TypeScript type error. */}
+              <select value={registerRole} onChange={e => setRegisterRole((e.target as any).value as Role | '')} className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:focus:ring-indigo-400">
                 <option value="" disabled>Select your role</option>
                 <option value="student">Student</option>
                 <option value="teacher">Teacher</option>
@@ -162,15 +167,18 @@ const AuthView: React.FC = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">Full Name</label>
-              <input type="text" value={registerFullName} onChange={e => setRegisterFullName(e.target.value)} disabled={!registerRole} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed transition dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:focus:ring-indigo-400 dark:disabled:bg-slate-600" placeholder="Enter your full name"/>
+              {/* FIX: Cast event target to 'any' to access the 'value' property, resolving a TypeScript type error. */}
+              <input type="text" value={registerFullName} onChange={e => setRegisterFullName((e.target as any).value)} disabled={!registerRole} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed transition dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:focus:ring-indigo-400 dark:disabled:bg-slate-600" placeholder="Enter your full name"/>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">{registerIdentifierProps.label}</label>
-              <input type={registerIdentifierProps.type} value={registerUsername} onChange={e => setRegisterUsername(e.target.value)} disabled={!registerRole} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed transition dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:focus:ring-indigo-400 dark:disabled:bg-slate-600" placeholder={registerIdentifierProps.placeholder}/>
+              {/* FIX: Cast event target to 'any' to access the 'value' property, resolving a TypeScript type error. */}
+              <input type={registerIdentifierProps.type} value={registerUsername} onChange={e => setRegisterUsername((e.target as any).value)} disabled={!registerRole} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed transition dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:focus:ring-indigo-400 dark:disabled:bg-slate-600" placeholder={registerIdentifierProps.placeholder}/>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">Password</label>
-              <input type="password" value={registerPassword} onChange={e => setRegisterPassword(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:focus:ring-indigo-400" placeholder="Create a password"/>
+              {/* FIX: Cast event target to 'any' to access the 'value' property, resolving a TypeScript type error. */}
+              <input type="password" value={registerPassword} onChange={e => setRegisterPassword((e.target as any).value)} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition dark:bg-slate-700 dark:border-slate-600 dark:text-white dark:focus:ring-indigo-400" placeholder="Create a password"/>
             </div>
             <button type="submit" disabled={loading || !registerRole || !registerFullName || !registerUsername || !registerPassword} className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white p-3 rounded-lg font-medium hover:from-indigo-700 hover:to-violet-700 disabled:from-indigo-400 disabled:to-violet-400 disabled:cursor-not-allowed transition-all duration-300 ease-in-out transform hover:scale-105">
               {loading ? 'Registering...' : 'Register'}

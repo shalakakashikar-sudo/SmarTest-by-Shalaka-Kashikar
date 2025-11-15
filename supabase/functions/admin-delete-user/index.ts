@@ -3,13 +3,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-// Fix: Declare Deno to address "Cannot find name 'Deno'" error in TypeScript environments that don't have Deno types globally available.
-declare const Deno: any;
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Fix: Declare Deno to address "Cannot find name 'Deno'" error in TypeScript environments that don't have Deno types globally available.
+declare const Deno: any;
 
 // Helper function to get env vars and throw a clear error if they are missing.
 function getRequiredEnv(key: string): string {
@@ -32,12 +33,21 @@ serve(async (req) => {
     const supabaseAnonKey = getRequiredEnv('SUPABASE_ANON_KEY');
     const serviceRoleKey = getRequiredEnv('SUPABASE_SERVICE_ROLE_KEY');
 
+    // FIX: Safely get the Authorization header to prevent a crash if it's missing.
+    const authorization = req.headers.get('Authorization');
+    if (!authorization) {
+        return new Response(JSON.stringify({ error: 'Missing authorization header.' }), {
+            status: 401,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+    }
+    
     // 1. Create a Supabase client with the user's auth token to verify their role.
     const userSupabaseClient = createClient(
       supabaseUrl,
       supabaseAnonKey,
       {
-        global: { headers: { Authorization: req.headers.get('Authorization')! } },
+        global: { headers: { Authorization: authorization } },
         auth: {
             autoRefreshToken: false,
             persistSession: false

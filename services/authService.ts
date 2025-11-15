@@ -1,5 +1,3 @@
-
-
 import { supabase } from './supabase';
 import type { Role } from '../types';
 
@@ -10,37 +8,25 @@ export const authService = {
     if (role === 'admin' && lowercasedUsername !== 'shalakakashikar@gmail.com') {
       throw new Error("Admin registration is restricted to the designated administrator email.");
     }
-
-    // Supabase requires an email for signup. For non-admin roles, we generate one
-    // from the username to keep the UI simple.
-    // FIX: Sanitize the username to prevent invalid email formats if the user
-    // accidentally enters an email address in the username field.
-    // e.g., 'teacher@example.com' becomes 'teacher@smartest-app.dev'
-    const email = role === 'admin'
-      ? lowercasedUsername
-      : `${lowercasedUsername.split('@')[0].replace(/\s+/g, '_')}@smartest-app.dev`;
     
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          username: username,
-          full_name: fullName,
-          role: role,
-        },
-      }
+    // NEW: Instead of using supabase.auth.signUp, we invoke a secure edge function
+    // that uses the admin role to create a user. This allows us to bypass the
+    // email confirmation step, which is the likely cause of login failures in
+    // restrictive environments where users cannot access a confirmation email.
+    const { data, error } = await supabase.functions.invoke('admin-create-user', {
+        body: { username, password, role, fullName }
     });
 
-    if (signUpError) {
-      throw signUpError;
+    if (error) {
+      // The function might return a user-friendly error message
+      throw new Error(error.message || 'Registration failed via function.');
     }
     
-    if (!signUpData.user) {
-        throw new Error('Registration did not return a user. Email confirmation might be enabled.');
+    if (!data) {
+        throw new Error('Registration did not return a user from the function.');
     }
     
-    return signUpData.user;
+    return data; // The function should return the newly created user object
   },
 
   async login(username: string, password: string, role: Role) {

@@ -48,7 +48,7 @@ const App: React.FC = () => {
     });
 
     return () => authListener?.subscription.unsubscribe();
-  }, [view]);
+  }, []);
 
   const navigateTo = (newView: View) => {
     setView(newView);

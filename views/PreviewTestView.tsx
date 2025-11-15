@@ -81,10 +81,28 @@ const PreviewQuestionDisplay: React.FC<{ question: Question; index: number; }> =
             );
             break;
         case 'short-answer':
-            answerInput = <textarea className={commonTextareaClasses} rows={3} placeholder="Student will type their answer here..." disabled />;
+            answerInput = (
+                <>
+                    <textarea className={commonTextareaClasses} rows={3} placeholder="Student will type their answer here..." disabled />
+                    {question.expectedWordLimit && (
+                        <div className="text-right text-xs text-gray-500 mt-1 dark:text-gray-400">
+                            Word Limit: {question.expectedWordLimit}
+                        </div>
+                    )}
+                </>
+            );
             break;
         case 'long-answer':
-            answerInput = <textarea className={commonTextareaClasses} rows={6} placeholder="Student will write their detailed answer here..." disabled />;
+            answerInput = (
+                <>
+                    <textarea className={commonTextareaClasses} rows={6} placeholder="Student will write their detailed answer here..." disabled />
+                    {question.expectedWordLimit && (
+                        <div className="text-right text-xs text-gray-500 mt-1 dark:text-gray-400">
+                            Word Limit: {question.expectedWordLimit}
+                        </div>
+                    )}
+                </>
+            );
             break;
         case 'reading-comprehension':
             answerInput = (
@@ -97,15 +115,46 @@ const PreviewQuestionDisplay: React.FC<{ question: Question; index: number; }> =
                     }
                     <h5 className="font-semibold text-gray-800 mb-2 dark:text-slate-200">Comprehension Questions:</h5>
                     <div className="space-y-4">
-                        {(question.comprehensionQuestions || []).map((compQ, compIndex) => (
-                            <div key={compIndex} className="bg-white p-3 rounded border dark:bg-slate-900 dark:border-slate-700">
-                                <div className="flex justify-between items-center mb-2">
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" dangerouslySetInnerHTML={{ __html: `${compIndex + 1}. ${compQ.question}` }} />
-                                    <span className="text-xs text-gray-500 dark:text-gray-400">[{compQ.marks} marks]</span>
+                        {(question.comprehensionQuestions || []).map((compQ, compIndex) => {
+                            let compAnswerInput;
+                            if (compQ.type === 'multiple-choice') {
+                                compAnswerInput = (
+                                    <div className="space-y-1 mt-2">
+                                        {compQ.options?.map((opt, i) => (
+                                            <label key={i} className="flex items-center space-x-2 p-1 rounded cursor-not-allowed">
+                                                <input type="radio" name={`preview-question-${index}-${compIndex}`} disabled className="cursor-not-allowed" />
+                                                <span className="dark:text-slate-300 text-sm">{String.fromCharCode(65 + i)}. {opt}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                );
+                            } else if (compQ.type === 'true-false') {
+                                compAnswerInput = (
+                                    <div className="space-y-1 mt-2">
+                                        <label className="flex items-center space-x-2 p-1 rounded cursor-not-allowed">
+                                            <input type="radio" name={`preview-question-${index}-${compIndex}`} disabled className="cursor-not-allowed" />
+                                            <span className="dark:text-slate-300 text-sm">True</span>
+                                        </label>
+                                        <label className="flex items-center space-x-2 p-1 rounded cursor-not-allowed">
+                                            <input type="radio" name={`preview-question-${index}-${compIndex}`} disabled className="cursor-not-allowed" />
+                                            <span className="dark:text-slate-300 text-sm">False</span>
+                                        </label>
+                                    </div>
+                                );
+                            } else { // short-answer
+                                compAnswerInput = <textarea className={`${commonTextareaClasses} text-sm`} rows={2} placeholder="Student will type their answer here..." disabled />;
+                            }
+
+                            return (
+                                <div key={compIndex} className="bg-white p-3 rounded border dark:bg-slate-900 dark:border-slate-700">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" dangerouslySetInnerHTML={{ __html: `${compIndex + 1}. ${compQ.question}` }} />
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">[{compQ.marks} marks]</span>
+                                    </div>
+                                    {compAnswerInput}
                                 </div>
-                                <textarea className={commonTextareaClasses} rows={2} placeholder="Student will type their answer here..." disabled />
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             );

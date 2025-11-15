@@ -1,14 +1,14 @@
+
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { dataService } from '../services/dataService';
-import { aiService } from '../services/aiService';
 import { useToast } from '../contexts/ToastContext';
 import { v4 as uuidv4 } from 'uuid';
 import type { Question, QuestionType, ComprehensionQuestion, Test } from '../types';
 
 interface TempQuestion extends Question {
     tempId: string;
-    isRegenerating?: boolean;
 }
 
 interface CreateTestViewProps {
@@ -27,6 +27,15 @@ const MiniToolbar: React.FC<{ onFormat: (tag: 'b' | 'i' | 'u') => void }> = ({ o
     );
 };
 
+const WordCounter: React.FC<{ text: string }> = ({ text }) => {
+    const wordCount = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+    return (
+        <div className="text-right text-xs text-gray-500 mt-1 dark:text-gray-400">
+            Word Count: {wordCount}
+        </div>
+    );
+};
+
 const CreateTestView: React.FC<CreateTestViewProps> = ({ navigateTo, testToEdit, onPreviewTest }) => {
     const { profile } = useAuth();
     const { addToast } = useToast();
@@ -35,37 +44,47 @@ const CreateTestView: React.FC<CreateTestViewProps> = ({ navigateTo, testToEdit,
     const [timer, setTimer] = useState<number | null>(null);
     const [questions, setQuestions] = useState<TempQuestion[]>([]);
     const [loading, setLoading] = useState(false);
-    const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-    const [isGenerating, setIsGenerating] = useState(false);
+    const [mediaModal, setMediaModal] = useState<{ isOpen: boolean; questionId: string | null }>({ isOpen: false, questionId: null });
 
     const isEditMode = !!testToEdit;
     const autoSaveKey = `smartest-autosave-create-${profile?.id}-${testToEdit?.id || 'new'}`;
     const hasShownToast = useRef(false);
 
-    // Effect to initialize state from props (edit mode) or localStorage (create mode)
+    // Effect to initialize state from localStorage (if draft exists) or props (edit mode)
     useEffect(() => {
+      // 1. Try to restore from localStorage first. This takes priority.
+      try {
+        const savedData = localStorage.getItem(autoSaveKey);
+        if (savedData) {
+          const parsedData = JSON.parse(savedData);
+          if (parsedData.title || (parsedData.questions && parsedData.questions.length > 0)) {
+              setTitle(parsedData.title || '');
+              setTestClass(parsedData.testClass || '');
+              setTimer(parsedData.timer || null);
+              setQuestions(parsedData.questions || []);
+              if (!hasShownToast.current) {
+                addToast('Your unsaved progress has been restored.', 'info');
+                hasShownToast.current = true;
+              }
+              return; // Exit early if we restored a draft.
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load test from localStorage:', error);
+      }
+
+      // 2. If no draft, load from props in edit mode.
       if (isEditMode && testToEdit) {
         setTitle(testToEdit.title);
         setTestClass(testToEdit.class);
         setTimer(testToEdit.timer);
         setQuestions(testToEdit.questions.map(q => ({ ...q, tempId: uuidv4() })));
-      } else if (!isEditMode) {
-        try {
-          const savedData = localStorage.getItem(autoSaveKey);
-          if (savedData) {
-            const parsedData = JSON.parse(savedData);
-            if (parsedData.title || (parsedData.questions && parsedData.questions.length > 0)) {
-                setTitle(parsedData.title || '');
-                setTestClass(parsedData.testClass || '');
-                setTimer(parsedData.timer || null);
-                setQuestions(parsedData.questions || []);
-                addToast('Your unsaved progress has been restored.', 'info');
-                hasShownToast.current = true;
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load test from localStorage:', error);
-        }
+      } else {
+      // 3. Otherwise, it's a new test, so ensure state is clear.
+        setTitle('');
+        setTestClass('');
+        setTimer(null);
+        setQuestions([]);
       }
     }, [isEditMode, testToEdit, addToast, autoSaveKey]);
     
@@ -122,85 +141,38 @@ const CreateTestView: React.FC<CreateTestViewProps> = ({ navigateTo, testToEdit,
         setQuestions(prev => prev.filter(q => q.tempId !== tempId));
     };
 
-    const handleAiGenerate = async (params: {
-        topic: string;
-        numQuestions: number;
-        questionTypes: QuestionType[];
-        difficulty: string;
-        isThinkingMode: boolean;
-    }) => {
-        setIsGenerating(true);
-        addToast(params.isThinkingMode ? '🤖 Engaging Gemini Pro with Thinking Mode. This may take a moment...' : '⚡ Generating test with Gemini Flash...', 'info');
-        try {
-            const { title: generatedTitle, questions: generatedQuestions } = await aiService.generateTestWithAI(params);
-            
-            setTitle(prev => prev || generatedTitle);
-            const newQuestions = generatedQuestions.map(q => ({...q, tempId: uuidv4()}));
-            setQuestions(prev => [...prev, ...newQuestions]);
-
-            addToast('AI has successfully generated the questions!', 'success');
-            setIsAiModalOpen(false);
-        } catch (error: any) {
-            addToast(`AI generation failed: ${error.message}`, 'error');
-        } finally {
-            setIsGenerating(false);
-        }
-    };
-
-    const handleRegenerateQuestion = async (tempId: string) => {
-      const questionToRegen = questions.find(q => q.tempId === tempId);
-      if (!questionToRegen) return;
-
-      setQuestions(prev => prev.map(q => q.tempId === tempId ? { ...q, isRegenerating: true } : q));
-      addToast('✨ Regenerating question with AI...', 'info');
-
-      try {
-          const { tempId: id, isRegenerating, ...questionData } = questionToRegen;
-          const newQuestion = await aiService.regenerateQuestionWithAI(questionData);
-          
-          updateQuestion(tempId, { ...newQuestion, isRegenerating: false });
-          addToast('Question regenerated successfully!', 'success');
-      } catch (error: any) {
-          addToast(`AI regeneration failed: ${error.message}`, 'error');
-          setQuestions(prev => prev.map(q => q.tempId === tempId ? { ...q, isRegenerating: false } : q));
-      }
-    };
-    
-    const saveTest = async () => {
+    const handleSaveTest = async () => {
         if (!title.trim()) {
-            addToast('Test title is required.', 'error');
+            addToast('Please enter a test title.', 'error');
             return;
         }
         if (questions.length === 0) {
             addToast('Please add at least one question.', 'error');
             return;
         }
-        if (!profile) {
-            addToast('You must be logged in to create a test.', 'error');
-            return;
-        }
 
         setLoading(true);
-        const testToSave: Test = {
-            id: isEditMode ? testToEdit.id : undefined,
+
+        const testPayload: Test = {
+            id: isEditMode ? testToEdit?.id : undefined,
             title,
             class: testClass,
-            timer: timer,
+            timer,
             total_marks: totalMarks,
-            questions: questions.map(({ tempId, isRegenerating, ...q }) => q), // remove temp properties
-            created_by: profile.id,
-            total_questions: questions.length
+            questions: questions.map(({ tempId, ...q }) => q), // Remove temp fields
+            created_by: profile?.id,
+            total_questions: questions.length,
         };
-        
+
         try {
             if (isEditMode) {
-                await dataService.updateTest(testToSave);
+                await dataService.updateTest(testPayload);
                 addToast('Test updated successfully!', 'success');
             } else {
-                await dataService.createTest(testToSave);
+                await dataService.createTest(testPayload);
                 addToast('Test created successfully!', 'success');
             }
-            localStorage.removeItem(autoSaveKey); // Clear auto-saved data on success
+            localStorage.removeItem(autoSaveKey); // Clear auto-save on successful save
             navigateTo('dashboard');
         } catch (error: any) {
             addToast(`Failed to save test: ${error.message}`, 'error');
@@ -208,345 +180,379 @@ const CreateTestView: React.FC<CreateTestViewProps> = ({ navigateTo, testToEdit,
             setLoading(false);
         }
     };
-
+    
     const handlePreview = () => {
+        if (!title.trim() || questions.length === 0) {
+            addToast('Please add a title and at least one question to preview.', 'error');
+            return;
+        }
         const testToPreview: Test = {
             title,
             class: testClass,
-            timer: timer,
+            timer,
             total_marks: totalMarks,
-            questions: questions.map(({ tempId, isRegenerating, ...q }) => q),
+            questions: questions.map(({ tempId, ...q }) => q),
             total_questions: questions.length,
         };
         onPreviewTest(testToPreview);
     };
+
+    const handleSaveMedia = (mediaData: { image?: string; video?: string; audio?: string }) => {
+        if (mediaModal.questionId) {
+            updateQuestion(mediaModal.questionId, { media: mediaData });
+        }
+        setMediaModal({ isOpen: false, questionId: null });
+    };
+    
+    const currentQuestionForMedia = questions.find(q => q.tempId === mediaModal.questionId);
     
     return (
         <div className="bg-white rounded-lg shadow-lg p-6 dark:bg-slate-800">
             <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-800 dark:text-slate-100">{isEditMode ? '✍️ Edit Test' : '📝 Create Test'}</h2>
-                <button onClick={() => navigateTo('dashboard')} className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg">← Back to Dashboard</button>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div><label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">Test Title</label> <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Enter test title" className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:border-slate-600 dark:text-white" /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">Class</label> <input type="text" value={testClass} onChange={e => setTestClass(e.target.value)} placeholder="Enter class/grade" className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:border-slate-600 dark:text-white" /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">Timer (minutes)</label> <input type="number" value={timer ?? ''} onChange={e => setTimer(e.target.value ? parseInt(e.target.value) : null)} placeholder="Enter time limit" min="1" max="300" className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:border-slate-600 dark:text-white" /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">Total Marks</label> <input type="number" value={totalMarks} readOnly className="w-full p-3 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 dark:bg-slate-700 dark:border-slate-600 dark:text-gray-400" placeholder="Auto-calculated" /></div>
-            </div>
-            
-            <div className="mb-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-slate-200">Questions</h3>
-                 <div className="flex space-x-2">
-                    <button onClick={() => setIsAiModalOpen(true)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-                        <span>Generate with AI</span>
-                    </button>
-                    <button onClick={addQuestion} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">+ Add Question</button>
-                </div>
-              </div>
-              <div id="questions-container" className="space-y-4">
-                {questions.map((q, index) => (
-                    <QuestionEditor key={q.tempId} question={q} index={index} updateQuestion={updateQuestion} removeQuestion={removeQuestion} onRegenerate={handleRegenerateQuestion} />
-                ))}
-              </div>
+                <h2 className="text-2xl font-bold text-gray-800 dark:text-slate-100">{isEditMode ? '✍️ Edit Test' : '📝 Create a New Test'}</h2>
+                <button onClick={() => navigateTo('dashboard')} className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg dark:bg-slate-600 dark:hover:bg-slate-500">← Back to Dashboard</button>
             </div>
 
-            <div className="flex justify-end space-x-4">
-                <button onClick={handlePreview} disabled={loading} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg disabled:bg-indigo-400">
-                  Preview Test
-                </button>
-                <button onClick={saveTest} disabled={loading} className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg disabled:bg-green-400">
-                  {loading ? 'Saving...' : (isEditMode ? 'Update Test' : 'Save Test')}
-                </button>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 p-4 border rounded-lg dark:border-slate-700">
+                <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Test Title</label>
+                    {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                    <input type="text" value={title} onChange={e => setTitle((e.target as any).value)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="e.g., Chapter 5: Photosynthesis Quiz" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Class / Subject</label>
+                    {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                    <input type="text" value={testClass} onChange={e => setTestClass((e.target as any).value)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="e.g., Grade 10 Biology" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Time Limit (minutes)</label>
+                    {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                    <input type="number" value={timer === null ? '' : timer} onChange={e => setTimer((e.target as any).value ? parseInt((e.target as any).value) : null)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="Optional" />
+                </div>
+                <div className="md:col-span-2 flex items-center justify-start text-sm text-gray-600 dark:text-gray-400">
+                    <span className="mr-4">Total Questions: <span className="font-bold text-gray-800 dark:text-slate-200">{questions.length}</span></span>
+                    <span>Total Marks: <span className="font-bold text-gray-800 dark:text-slate-200">{totalMarks}</span></span>
+                </div>
             </div>
-            {isAiModalOpen && (
-                <AIGenerationModal
-                    onClose={() => setIsAiModalOpen(false)}
-                    onGenerate={handleAiGenerate}
-                    isLoading={isGenerating}
+
+            <div className="space-y-4 pb-24">
+                {questions.map((q, index) => (
+                    <QuestionEditor 
+                        key={q.tempId}
+                        question={q}
+                        index={index}
+                        updateQuestion={updateQuestion}
+                        removeQuestion={removeQuestion}
+                        onOpenMediaModal={(id) => setMediaModal({ isOpen: true, questionId: id })}
+                    />
+                ))}
+            </div>
+
+             <div className="sticky bottom-0 -mx-6 -mb-6 mt-4 p-4 bg-white/80 backdrop-blur-sm border-t border-gray-200 dark:bg-slate-800/80 dark:border-slate-700">
+                <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between">
+                    <div className="space-x-2 mb-2 md:mb-0">
+                        <button onClick={addQuestion} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">➕ Add Question</button>
+                    </div>
+                    <div className="space-x-2">
+                        <button onClick={handlePreview} className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg">👁️ Preview</button>
+                        <button onClick={handleSaveTest} disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium disabled:bg-blue-400">
+                            {loading ? 'Saving...' : (isEditMode ? '💾 Update Test' : '💾 Save Test')}
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            {mediaModal.isOpen && currentQuestionForMedia && (
+                <MediaModal
+                    initialMedia={currentQuestionForMedia.media}
+                    onClose={() => setMediaModal({ isOpen: false, questionId: null })}
+                    onSave={handleSaveMedia}
                 />
             )}
         </div>
     );
 };
 
-// --- AI Generation Modal Component ---
-const AIGenerationModal: React.FC<{
+interface MediaModalProps {
+    initialMedia?: { image?: string | null; video?: string | null; audio?: string | null } | null;
     onClose: () => void;
-    onGenerate: (params: { topic: string; numQuestions: number; questionTypes: QuestionType[], difficulty: string, isThinkingMode: boolean }) => void;
-    isLoading: boolean;
-}> = ({ onClose, onGenerate, isLoading }) => {
-    const [topic, setTopic] = useState('');
-    const [numQuestions, setNumQuestions] = useState(5);
-    const [difficulty, setDifficulty] = useState('Medium');
-    const [isThinkingMode, setIsThinkingMode] = useState(false);
-    const [questionTypes, setQuestionTypes] = useState<QuestionType[]>(['multiple-choice']);
-    const { addToast } = useToast();
-    
-    const allQuestionTypes: { id: QuestionType, label: string }[] = [
-        { id: 'multiple-choice', label: 'Multiple Choice' },
-        { id: 'true-false', label: 'True/False' },
-        { id: 'short-answer', label: 'Short Answer' },
-        { id: 'long-answer', label: 'Long Answer' },
-        { id: 'reading-comprehension', label: 'Reading Comprehension' },
-    ];
+    onSave: (mediaData: { image?: string; video?: string; audio?: string }) => void;
+}
 
-    const handleTypeToggle = (type: QuestionType) => {
-        setQuestionTypes(prev =>
-            prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
-        );
-    };
+const MediaModal: React.FC<MediaModalProps> = ({ initialMedia, onClose, onSave }) => {
+    const [media, setMedia] = useState({
+        image: initialMedia?.image || '',
+        video: initialMedia?.video || '',
+        audio: initialMedia?.audio || '',
+    });
 
-    const handleSubmit = () => {
-        if (!topic.trim()) {
-            addToast('Please enter a topic.', 'error');
-            return;
-        }
-        if (questionTypes.length === 0) {
-            addToast('Please select at least one question type.', 'error');
-            return;
-        }
-        onGenerate({ topic, numQuestions, questionTypes, difficulty, isThinkingMode });
+    const handleSave = () => {
+        onSave({
+            image: media.image?.trim() || undefined,
+            video: media.video?.trim() || undefined,
+            audio: media.audio?.trim() || undefined,
+        });
     };
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-            <div className="bg-white p-8 rounded-lg shadow-2xl max-w-2xl w-full mx-4 dark:bg-slate-800">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-slate-100">✨ AI Test Generation</h3>
-                   <button onClick={onClose} disabled={isLoading} className="text-gray-500 hover:text-gray-800 disabled:opacity-50 dark:text-gray-400 dark:hover:text-gray-200">&times;</button>
-                </div>
-                <p className="text-gray-600 mb-6 dark:text-gray-400">Describe the test you want to create. Gemini will generate the questions for you.</p>
-
+            <div className="bg-white p-8 rounded-lg shadow-2xl max-w-lg w-full mx-4 dark:bg-slate-800">
+                <h3 className="text-2xl font-bold text-gray-900 mb-4 dark:text-slate-100">📎 Attach Media</h3>
                 <div className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">Topic / Syllabus</label>
-                        <textarea value={topic} onChange={e => setTopic(e.target.value)} rows={3} placeholder="e.g., 'The basics of photosynthesis for 8th grade biology', 'Chapter 5: Linear Equations', 'World War II: The European Theater'" className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white"></textarea>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">Number of Questions</label><input type="number" value={numQuestions} onChange={e => setNumQuestions(Math.max(1, parseInt(e.target.value)))} min="1" max="20" className="w-full p-2 border border-gray-300 rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white"/></div>
-                        <div><label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">Difficulty</label><select value={difficulty} onChange={e => setDifficulty(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white"><option>Easy</option><option>Medium</option><option>Hard</option></select></div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Image URL</label>
+                        {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                        <input type="text" value={media.image} onChange={e => setMedia(m => ({ ...m, image: (e.target as any).value }))} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="https://example.com/image.png" />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-gray-300">Question Types</label>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            {allQuestionTypes.map(({ id, label }) => (
-                                <button key={id} onClick={() => handleTypeToggle(id)} className={`p-2 rounded-lg text-sm border ${questionTypes.includes(id) ? 'bg-purple-600 text-white border-purple-600' : 'bg-white hover:bg-gray-100 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 dark:border-slate-600'}`}>{label}</button>
-                            ))}
-                        </div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Video URL</label>
+                        {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                        <input type="text" value={media.video} onChange={e => setMedia(m => ({ ...m, video: (e.target as any).value }))} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="https://example.com/video.mp4" />
                     </div>
-                     <div className="flex items-center justify-between bg-blue-50 p-3 rounded-lg border border-blue-200 dark:bg-blue-900/30 dark:border-blue-800">
-                        <div>
-                            <h4 className="font-semibold text-blue-800 dark:text-blue-300">Enable Thinking Mode</h4>
-                            <p className="text-sm text-blue-700 dark:text-blue-400">Uses Gemini 2.5 Pro for higher quality, more complex questions. (Slower)</p>
-                        </div>
-                        <label htmlFor="thinking-mode-toggle" className="flex items-center cursor-pointer">
-                            <div className="relative">
-                                <input type="checkbox" id="thinking-mode-toggle" className="sr-only" checked={isThinkingMode} onChange={() => setIsThinkingMode(!isThinkingMode)} />
-                                <div className="block bg-gray-300 w-10 h-6 rounded-full dark:bg-slate-600"></div>
-                                <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${isThinkingMode ? 'transform translate-x-full bg-purple-400' : ''}`}></div>
-                            </div>
-                        </label>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Audio URL</label>
+                        {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                        <input type="text" value={media.audio} onChange={e => setMedia(m => ({ ...m, audio: (e.target as any).value }))} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="https://example.com/audio.mp3" />
                     </div>
                 </div>
-
-                <div className="flex justify-end space-x-4 mt-6">
-                    <button onClick={onClose} disabled={isLoading} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold px-6 py-2 rounded-lg dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-100">Cancel</button>
-                    <button onClick={handleSubmit} disabled={isLoading} className="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-2 rounded-lg disabled:bg-purple-400">
-                      {isLoading ? 'Generating...' : '✨ Generate'}
-                    </button>
+                <div className="flex justify-end space-x-3 pt-6">
+                    <button type="button" onClick={onClose} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold px-6 py-2 rounded-lg dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-100">Cancel</button>
+                    <button type="button" onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg">Save Media</button>
                 </div>
             </div>
         </div>
     );
 };
 
+interface QuestionEditorProps {
+    question: TempQuestion;
+    index: number;
+    updateQuestion: (tempId: string, updatedField: Partial<TempQuestion>) => void;
+    removeQuestion: (tempId: string) => void;
+    onOpenMediaModal: (tempId: string) => void;
+}
 
-// --- Question Editor Component ---
-const QuestionEditor: React.FC<{ question: TempQuestion; index: number; updateQuestion: (tempId: string, updatedField: Partial<TempQuestion>) => void; removeQuestion: (tempId: string) => void; onRegenerate: (tempId: string) => void; }> = React.memo(({ question, index, updateQuestion, removeQuestion, onRegenerate }) => {
-    const [isMediaOpen, setIsMediaOpen] = useState(false);
-    const textRef = useRef<HTMLTextAreaElement>(null);
-    const correctAnswerRef = useRef<HTMLTextAreaElement>(null);
-    const passageRef = useRef<HTMLTextAreaElement>(null);
-    const compAnswerRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
+const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, updateQuestion, removeQuestion, onOpenMediaModal }) => {
+    const commonInputClasses = "w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600";
 
-    const handleFormat = (
-        ref: React.RefObject<HTMLTextAreaElement>,
-        callback: (newValue: string) => void
-    ) => (tag: 'b' | 'i' | 'u') => {
-        const textarea = ref.current;
-        if (!textarea) return;
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        if (start === end) return;
-        const value = textarea.value;
-        const selectedText = value.substring(start, end);
-        const newValue = `${value.substring(0, start)}<${tag}>${selectedText}</${tag}>${value.substring(end)}`;
-        callback(newValue);
-    };
-    
     const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const newType = e.target.value as QuestionType;
-        // FIX: Preserve the existing media object when changing question type to prevent data loss.
-        const newFields: Partial<Question> = { type: newType, media: question.media };
-        
+        // FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue.
+        const newType = (e.target as any).value as QuestionType;
+        const updatedFields: Partial<TempQuestion> = { type: newType };
+        // Set defaults for new type
         if (newType === 'multiple-choice') {
-            newFields.options = ['', '', '', ''];
-            newFields.correctAnswer = 'A';
+            updatedFields.options = ['', '', '', ''];
+            updatedFields.correctAnswer = 'A';
         } else if (newType === 'true-false') {
-            newFields.options = ['True', 'False'];
-            newFields.correctAnswer = 'True';
+            updatedFields.options = ['True', 'False'];
+            updatedFields.correctAnswer = 'True';
         } else if (newType === 'reading-comprehension') {
-            newFields.passage = '';
-            const newCompQuestion: ComprehensionQuestion = { question: '', sampleAnswer: '', type: 'short-answer', marks: 1 };
-            newFields.comprehensionQuestions = [newCompQuestion];
-            newFields.marks = 0;
+            updatedFields.passage = '';
+            updatedFields.comprehensionQuestions = [];
+            updatedFields.marks = 0; // Marks will be sum of sub-questions
         } else {
-            delete newFields.options;
-            newFields.correctAnswer = '';
+            delete updatedFields.options;
+            delete updatedFields.comprehensionQuestions;
         }
-        
-        updateQuestion(question.tempId, newFields);
-    };
-
-    const handleOptionChange = (optionIndex: number, value: string) => {
-        const newOptions = [...(question.options || [])];
-        newOptions[optionIndex] = value;
-        updateQuestion(question.tempId, { options: newOptions });
-    };
-
-    const handleMediaChange = (type: 'image' | 'video' | 'audio', value: string) => {
-        // FIX: When adding media for the first time, `question.media` is undefined.
-        // The code `...question.media` would throw an error. Initialize an empty object if it's undefined.
-        const currentMedia = question.media || {};
-        updateQuestion(question.tempId, { media: { ...currentMedia, [type]: value || undefined } });
-    };
-
-    const handleComprehensionQuestionChange = (compIndex: number, field: keyof ComprehensionQuestion, value: any) => {
-        const newCompQuestions = [...(question.comprehensionQuestions || [])];
-        newCompQuestions[compIndex] = { ...newCompQuestions[compIndex], [field]: value };
-        updateQuestion(question.tempId, { comprehensionQuestions: newCompQuestions });
+        updateQuestion(question.tempId, updatedFields);
     };
 
     const addComprehensionQuestion = () => {
-        const newCompQuestion: ComprehensionQuestion = { question: '', sampleAnswer: '', type: 'short-answer', marks: 1 };
-        const newCompQuestions = [...(question.comprehensionQuestions || []), newCompQuestion];
-        updateQuestion(question.tempId, { comprehensionQuestions: newCompQuestions });
+        const newCompQ: ComprehensionQuestion = { question: '', type: 'short-answer', marks: 1, sampleAnswer: '' };
+        updateQuestion(question.tempId, { comprehensionQuestions: [...(question.comprehensionQuestions || []), newCompQ] });
+    };
+
+    const updateComprehensionQuestion = (compIndex: number, field: keyof ComprehensionQuestion, value: any) => {
+        const updatedCompQs = (question.comprehensionQuestions || []).map((q, i) => (i === compIndex ? { ...q, [field]: value } : q));
+        updateQuestion(question.tempId, { comprehensionQuestions: updatedCompQs });
     };
     
     const removeComprehensionQuestion = (compIndex: number) => {
-        const newCompQuestions = (question.comprehensionQuestions || []).filter((_, i) => i !== compIndex);
-        updateQuestion(question.tempId, { comprehensionQuestions: newCompQuestions });
+        const updatedCompQs = (question.comprehensionQuestions || []).filter((_, i) => i !== compIndex);
+        updateQuestion(question.tempId, { comprehensionQuestions: updatedCompQs });
     };
     
+    const handleComprehensionTypeChange = (compIndex: number, newType: 'short-answer' | 'multiple-choice' | 'true-false') => {
+        const updatedCompQs = [...(question.comprehensionQuestions || [])];
+        const updatedCompQ: ComprehensionQuestion = { ...updatedCompQs[compIndex], type: newType };
+
+        // Set defaults for the new type
+        if (newType === 'multiple-choice') {
+            updatedCompQ.options = updatedCompQ.options?.length === 4 ? updatedCompQ.options : ['', '', '', ''];
+            updatedCompQ.correctAnswer = updatedCompQ.correctAnswer || 'A';
+        } else if (newType === 'true-false') {
+            updatedCompQ.options = ['True', 'False'];
+            updatedCompQ.correctAnswer = updatedCompQ.correctAnswer || 'True';
+        } else { // short-answer
+            delete updatedCompQ.options;
+            delete updatedCompQ.correctAnswer;
+        }
+
+        updatedCompQs[compIndex] = updatedCompQ;
+        updateQuestion(question.tempId, { comprehensionQuestions: updatedCompQs });
+    };
+
+
     return (
-        <div className={`p-4 border rounded-lg bg-gray-100 dark:bg-slate-900/50 dark:border-slate-700 ${question.isRegenerating ? 'opacity-50 pointer-events-none' : ''}`}>
-            <div className="flex justify-between items-start mb-4">
-                <h4 className="font-semibold text-gray-800 dark:text-slate-200">Question {index + 1}</h4>
-                <div className="flex items-center space-x-2">
-                    <button onClick={() => setIsMediaOpen(!isMediaOpen)} className="text-gray-500 hover:text-gray-800 p-1 rounded-full dark:text-gray-400 dark:hover:text-gray-200" title="Add Media">
-                       📎
-                    </button>
-                    <button onClick={() => onRegenerate(question.tempId)} className="text-purple-600 hover:text-purple-800 p-1 rounded-full dark:text-purple-400 dark:hover:text-purple-300" title="Regenerate with AI">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 110 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" /></svg>
-                    </button>
-                    <button onClick={() => removeQuestion(question.tempId)} className="text-red-500 hover:text-red-700 text-2xl leading-none" title="Remove Question">&times;</button>
-                </div>
+        <div className="p-4 border rounded-lg bg-gray-50 dark:bg-slate-900/50 dark:border-slate-700 relative">
+            <div className="absolute top-2 right-2 flex items-center space-x-2">
+                 <button onClick={() => onOpenMediaModal(question.tempId)} className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200" title="Add Media">📎</button>
+                <button onClick={() => removeQuestion(question.tempId)} className="text-red-500 hover:text-red-700" title="Delete Question">🗑️</button>
             </div>
-
-            {isMediaOpen && (
-                <div className="p-3 mb-4 bg-gray-200 rounded-lg space-y-2 dark:bg-slate-700">
-                    <h5 className="text-sm font-semibold text-gray-700 dark:text-slate-200">Attach Media</h5>
-                    <div><input type="text" placeholder="Image URL" value={question.media?.image || ''} onChange={e => handleMediaChange('image', e.target.value)} className="w-full p-2 text-sm border rounded-lg dark:bg-slate-600 dark:border-slate-500 dark:text-white" /></div>
-                    <div><input type="text" placeholder="Video URL" value={question.media?.video || ''} onChange={e => handleMediaChange('video', e.target.value)} className="w-full p-2 text-sm border rounded-lg dark:bg-slate-600 dark:border-slate-500 dark:text-white" /></div>
-                    <div><input type="text" placeholder="Audio URL" value={question.media?.audio || ''} onChange={e => handleMediaChange('audio', e.target.value)} className="w-full p-2 text-sm border rounded-lg dark:bg-slate-600 dark:border-slate-500 dark:text-white" /></div>
+            <h4 className="font-semibold text-gray-800 dark:text-slate-200 mb-2">Question {index + 1}</h4>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="md:col-span-3">
+                    <label className="block text-sm font-medium dark:text-gray-300">Question Text</label>
+                     <MiniToolbar onFormat={(tag) => {/* ... */}} />
+                    {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                    <textarea value={question.text} onChange={e => updateQuestion(question.tempId, { text: (e.target as any).value })} className={commonInputClasses} rows={2} />
                 </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div><label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Type</label><select value={question.type} onChange={handleTypeChange} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white"><option value="multiple-choice">Multiple Choice</option><option value="true-false">True/False</option><option value="short-answer">Short Answer</option><option value="long-answer">Long Answer</option><option value="reading-comprehension">Reading Comprehension</option></select></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Marks</label><input type="number" value={question.marks} onChange={e => updateQuestion(question.tempId, { marks: parseInt(e.target.value) })} min="0" className="w-full p-2 border rounded-lg disabled:bg-gray-200 dark:bg-slate-700 dark:border-slate-600 dark:text-white" disabled={question.type === 'reading-comprehension'} /></div>
-            </div>
-            
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Question Text</label>
-                <MiniToolbar onFormat={handleFormat(textRef, (newValue) => updateQuestion(question.tempId, { text: newValue }))} />
-                <textarea ref={textRef} rows={3} value={question.text} onChange={e => updateQuestion(question.tempId, { text: e.target.value })} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
-            </div>
-
-            {question.type === 'multiple-choice' && (
-                <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Options & Correct Answer</label>
-                    <div className="space-y-2">
-                        {question.options?.map((opt, i) => (
-                            <div key={i} className="flex items-center space-x-2">
-                                <span className="font-semibold text-gray-600 dark:text-gray-400">{String.fromCharCode(65 + i)}.</span>
-                                <input type="text" value={opt} onChange={e => handleOptionChange(i, e.target.value)} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
-                            </div>
-                        ))}
-                    </div>
-                    <div className="mt-2"><label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Correct Answer</label><select value={question.correctAnswer} onChange={e => updateQuestion(question.tempId, { correctAnswer: e.target.value })} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white">
-                        {question.options?.map((_, i) => <option key={i} value={String.fromCharCode(65 + i)}>{String.fromCharCode(65 + i)}</option>)}
-                    </select></div>
-                </div>
-            )}
-            
-            {question.type === 'true-false' && (
-                <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Correct Answer</label>
-                    <select value={question.correctAnswer} onChange={e => updateQuestion(question.tempId, { correctAnswer: e.target.value })} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white">
-                        <option value="True">True</option>
-                        <option value="False">False</option>
+                <div>
+                    <label className="block text-sm font-medium dark:text-gray-300">Type</label>
+                    <select value={question.type} onChange={handleTypeChange} className={commonInputClasses}>
+                        <option value="multiple-choice">Multiple Choice</option>
+                        <option value="true-false">True/False</option>
+                        <option value="short-answer">Short Answer</option>
+                        <option value="long-answer">Long Answer</option>
+                        <option value="reading-comprehension">Reading Comprehension</option>
                     </select>
                 </div>
-            )}
-            
-            {(question.type === 'short-answer' || question.type === 'long-answer') && (
+            </div>
+
+            {/* Type-specific fields */}
+            {question.type === 'multiple-choice' && (
                 <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Sample Answer / Marking Scheme</label>
-                    <MiniToolbar onFormat={handleFormat(correctAnswerRef, (newValue) => updateQuestion(question.tempId, { correctAnswer: newValue }))} />
-                    <textarea ref={correctAnswerRef} rows={2} value={question.correctAnswer} onChange={e => updateQuestion(question.tempId, { correctAnswer: e.target.value })} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
+                    {question.options?.map((opt, i) => (
+                        <div key={i} className="flex items-center space-x-2 mb-2">
+                             {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                             <input type="radio" name={`correct-${question.tempId}`} value={String.fromCharCode(65 + i)} checked={question.correctAnswer === String.fromCharCode(65 + i)} onChange={e => updateQuestion(question.tempId, { correctAnswer: (e.target as any).value })} />
+                            <span className="font-mono">{String.fromCharCode(65 + i)}.</span>
+                            {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                            <input type="text" value={opt} onChange={e => {
+                                const newOptions = [...question.options!]; newOptions[i] = (e.target as any).value;
+                                updateQuestion(question.tempId, { options: newOptions });
+                            }} className={commonInputClasses} placeholder={`Option ${i+1}`} />
+                        </div>
+                    ))}
                 </div>
             )}
-            
-            {question.type === 'reading-comprehension' && (
+             {question.type === 'true-false' && (
+                 <div className="mt-4 flex space-x-4">
+                     <label><input type="radio" name={`correct-${question.tempId}`} value="True" checked={question.correctAnswer === 'True'} onChange={e => updateQuestion(question.tempId, { correctAnswer: 'True' })} /> True</label>
+                     <label><input type="radio" name={`correct-${question.tempId}`} value="False" checked={question.correctAnswer === 'False'} onChange={e => updateQuestion(question.tempId, { correctAnswer: 'False' })} /> False</label>
+                 </div>
+             )}
+             {question.type === 'reading-comprehension' && (
                  <div className="mt-4 space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Reading Passage</label>
-                        <MiniToolbar onFormat={handleFormat(passageRef, (newValue) => updateQuestion(question.tempId, { passage: newValue }))} />
-                        <textarea ref={passageRef} rows={5} value={question.passage} onChange={e => updateQuestion(question.tempId, { passage: e.target.value })} className="w-full p-2 border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white" />
-                    </div>
-                    <div className="p-3 bg-blue-50 rounded-lg border dark:bg-blue-900/20 dark:border-blue-800">
-                        <h5 className="font-semibold text-gray-700 mb-2 dark:text-slate-300">Comprehension Questions</h5>
-                        <div className="space-y-3">
-                        {(question.comprehensionQuestions || []).map((compQ, compIndex) => (
-                            <div key={compIndex} className="p-2 bg-white rounded border relative dark:bg-slate-700 dark:border-slate-600">
-                               <button onClick={() => removeComprehensionQuestion(compIndex)} className="absolute top-1 right-1 text-red-500 hover:text-red-700 text-xs">&times;</button>
-                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  <div><label className="text-xs font-medium dark:text-gray-400">Question {compIndex + 1}</label><input type="text" value={compQ.question} onChange={e => handleComprehensionQuestionChange(compIndex, 'question', e.target.value)} className="w-full p-1 border rounded text-sm dark:bg-slate-600 dark:border-slate-500 dark:text-white"/></div>
-                                  <div><label className="text-xs font-medium dark:text-gray-400">Marks</label><input type="number" min="0" value={compQ.marks} onChange={e => handleComprehensionQuestionChange(compIndex, 'marks', parseInt(e.target.value))} className="w-full p-1 border rounded text-sm dark:bg-slate-600 dark:border-slate-500 dark:text-white"/></div>
-                               </div>
-                               <div>
-                                  <label className="text-xs font-medium dark:text-gray-400">Sample Answer</label>
-                                  <textarea
-                                    ref={el => { compAnswerRefs.current[compIndex] = el }}
+                     <div>
+                         <label className="block text-sm font-medium dark:text-gray-300">Reading Passage</label>
+                         {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                         <textarea value={question.passage} onChange={e => updateQuestion(question.tempId, { passage: (e.target as any).value })} className={commonInputClasses} rows={5} />
+                     </div>
+                     <div className="space-y-3">
+                        {question.comprehensionQuestions?.map((cq, cqIndex) => (
+                             <div key={cqIndex} className="p-3 border rounded bg-white dark:bg-slate-800 space-y-2">
+                                <div className="flex justify-between items-center">
+                                    <p className="font-medium text-sm text-gray-600 dark:text-gray-300">Sub-question {cqIndex + 1}</p>
+                                    <button onClick={() => removeComprehensionQuestion(cqIndex)} className="text-xs text-red-500 hover:text-red-700">remove</button>
+                                </div>
+                                {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                                <input value={cq.question} onChange={e => updateComprehensionQuestion(cqIndex, 'question', (e.target as any).value)} className={`${commonInputClasses} text-sm`} placeholder={`Sub-question text`} />
+                                
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Type:</label>
+                                        <select
+                                            value={cq.type}
+                                            onChange={e => handleComprehensionTypeChange(cqIndex, (e.target as any).value as 'short-answer' | 'multiple-choice' | 'true-false')}
+                                            className={`${commonInputClasses} !w-48 text-sm`}
+                                        >
+                                            <option value="short-answer">Short Answer</option>
+                                            <option value="multiple-choice">Multiple Choice</option>
+                                            <option value="true-false">True/False</option>
+                                        </select>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Marks:</label>
+                                        {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                                        <input type="number" value={cq.marks} onChange={e => updateComprehensionQuestion(cqIndex, 'marks', parseInt((e.target as any).value))} className={`${commonInputClasses} !w-24`} placeholder="marks" />
+                                    </div>
+                                </div>
+
+                                <textarea
+                                    value={cq.markingScheme ?? ''}
+                                    onChange={e => updateComprehensionQuestion(cqIndex, 'markingScheme', (e.target as any).value)}
+                                    className={`${commonInputClasses} text-sm`}
                                     rows={2}
-                                    value={compQ.sampleAnswer}
-                                    onChange={e => handleComprehensionQuestionChange(compIndex, 'sampleAnswer', e.target.value)}
-                                    className="w-full p-1 border rounded text-sm dark:bg-slate-600 dark:border-slate-500 dark:text-white"
-                                  />
-                               </div>
+                                    placeholder="Optional: Marking scheme for this sub-question"
+                                />
+                                
+                                {cq.type === 'short-answer' && (
+                                    <textarea value={cq.sampleAnswer ?? ''} onChange={e => updateComprehensionQuestion(cqIndex, 'sampleAnswer', (e.target as any).value)} className={`${commonInputClasses} text-sm`} rows={2} placeholder="Sample answer for AI evaluation" />
+                                )}
+                                
+                                {cq.type === 'multiple-choice' && (
+                                    <div className="mt-2 pl-4 space-y-1">
+                                        {cq.options?.map((opt, optIndex) => (
+                                            <div key={optIndex} className="flex items-center space-x-2">
+                                                <input type="radio" name={`correct-sub-${question.tempId}-${cqIndex}`} value={String.fromCharCode(65 + optIndex)} checked={cq.correctAnswer === String.fromCharCode(65 + optIndex)} onChange={e => updateComprehensionQuestion(cqIndex, 'correctAnswer', (e.target as any).value)} />
+                                                <span className="font-mono text-sm">{String.fromCharCode(65 + optIndex)}.</span>
+                                                <input type="text" value={opt} onChange={e => {
+                                                    const newOptions = [...(cq.options || [])];
+                                                    newOptions[optIndex] = (e.target as any).value;
+                                                    updateComprehensionQuestion(cqIndex, 'options', newOptions);
+                                                }} className={`${commonInputClasses} text-sm`} placeholder={`Option ${optIndex + 1}`} />
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                {cq.type === 'true-false' && (
+                                    <div className="mt-2 pl-4 flex space-x-4 items-center">
+                                        <label className="text-sm flex items-center gap-1.5"><input type="radio" name={`correct-sub-${question.tempId}-${cqIndex}`} value="True" checked={cq.correctAnswer === 'True'} onChange={() => updateComprehensionQuestion(cqIndex, 'correctAnswer', 'True')} /> True</label>
+                                        <label className="text-sm flex items-center gap-1.5"><input type="radio" name={`correct-sub-${question.tempId}-${cqIndex}`} value="False" checked={cq.correctAnswer === 'False'} onChange={() => updateComprehensionQuestion(cqIndex, 'correctAnswer', 'False')} /> False</label>
+                                    </div>
+                                )}
                             </div>
                         ))}
-                        </div>
-                        <button onClick={addComprehensionQuestion} className="mt-3 text-sm bg-blue-200 hover:bg-blue-300 text-blue-800 px-3 py-1 rounded dark:bg-blue-800 dark:hover:bg-blue-700 dark:text-blue-200">+ Add Sub-Question</button>
-                    </div>
+                     </div>
+                     <button onClick={addComprehensionQuestion} className="text-sm bg-gray-200 px-2 py-1 rounded dark:bg-slate-700">Add Sub-question</button>
+                 </div>
+             )}
+
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-sm font-medium dark:text-gray-300">Marks</label>
+                    {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                    <input type="number" value={question.marks} onChange={e => updateQuestion(question.tempId, { marks: parseInt((e.target as any).value) })} className={commonInputClasses} disabled={question.type === 'reading-comprehension'} />
                 </div>
-            )}
+                 <div>
+                    <label className="block text-sm font-medium dark:text-gray-300">Word Limit (Optional)</label>
+                    {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                    <input type="number" value={question.expectedWordLimit ?? ''} onChange={e => updateQuestion(question.tempId, { expectedWordLimit: (e.target as any).value ? parseInt((e.target as any).value) : null })} className={commonInputClasses} />
+                </div>
+                {(question.type === 'short-answer' || question.type === 'long-answer') ? (
+                    <>
+                        <div>
+                             <label className="block text-sm font-medium dark:text-gray-300">Marking Scheme (Optional)</label>
+                             {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                             <textarea value={question.markingScheme ?? ''} onChange={e => updateQuestion(question.tempId, { markingScheme: (e.target as any).value })} className={commonInputClasses} rows={3} placeholder="e.g., 1 mark for definition..." />
+                        </div>
+                        <div>
+                             <label className="block text-sm font-medium dark:text-gray-300">Sample Answer (Optional)</label>
+                             {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                             <textarea value={question.sampleAnswer ?? ''} onChange={e => updateQuestion(question.tempId, { sampleAnswer: (e.target as any).value })} className={commonInputClasses} rows={3} placeholder="A model answer for AI evaluation." />
+                        </div>
+                    </>
+                ) : (
+                    <div className="md:col-span-2">
+                         <label className="block text-sm font-medium dark:text-gray-300">Marking Scheme (Optional)</label>
+                         {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
+                         <textarea value={question.markingScheme ?? ''} onChange={e => updateQuestion(question.tempId, { markingScheme: (e.target as any).value })} className={commonInputClasses} rows={2} placeholder="e.g., 1 mark for definition, 1 mark for example..." />
+                    </div>
+                )}
+            </div>
         </div>
     );
-});
+};
 
 export default CreateTestView;

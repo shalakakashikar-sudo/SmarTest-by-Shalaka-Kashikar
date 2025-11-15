@@ -3,114 +3,42 @@ import type { Test, TestResult, EvaluationResult } from '../types';
 
 export const dataService = {
   async createTest(test: Test) {
-    const { data: testData, error: testError } = await supabase
-      .from('tests')
-      .insert({
-        title: test.title,
-        class: test.class,
-        timer: test.timer,
-        total_marks: test.total_marks,
-        created_by: test.created_by,
-        total_questions: test.questions.length
-      })
-      .select()
-      .single();
+    const { data, error } = await supabase.functions.invoke('save-test', {
+      body: test,
+    });
 
-    if (testError) throw testError;
-
-    const questionsToInsert = test.questions.map(q => ({ ...q, test_id: testData.id }));
-    const { error: questionsError } = await supabase
-      .from('questions')
-      .insert(questionsToInsert);
-
-    if (questionsError) {
-      // Rollback test creation if questions fail
-      await supabase.from('tests').delete().eq('id', testData.id);
-      throw questionsError;
-    }
-    
-    return { ...testData, questions: questionsToInsert };
+    if (error) throw error;
+    return data;
   },
 
   async updateTest(test: Test) {
     if (!test.id) throw new Error("Test ID is required for updating.");
-
-    const { data: testData, error: testError } = await supabase
-      .from('tests')
-      .update({
-        title: test.title,
-        class: test.class,
-        timer: test.timer,
-        total_marks: test.total_marks,
-        total_questions: test.questions.length
-      })
-      .eq('id', test.id)
-      .select()
-      .single();
-    
-    if (testError) throw testError;
-
-    // Easiest way to handle question updates is to delete all old ones and insert the new set.
-    const { error: deleteError } = await supabase
-      .from('questions')
-      .delete()
-      .eq('test_id', test.id);
-    
-    if (deleteError) throw deleteError;
-
-    // FIX: Explicitly remove the 'id' property from questions before re-inserting.
-    // This prevents a "not-null constraint" violation by ensuring the database
-    // generates a new UUID for each question row.
-    const questionsToInsert = test.questions.map(q => {
-        const { id, ...questionData } = q;
-        return { ...questionData, test_id: test.id };
+    const { data, error } = await supabase.functions.invoke('save-test', {
+      body: test,
     });
-    
-    const { error: questionsError } = await supabase
-      .from('questions')
-      .insert(questionsToInsert);
-    
-    if (questionsError) throw questionsError;
 
-    return { ...testData, questions: questionsToInsert };
+    if (error) throw error;
+    return data;
   },
 
   async deleteTest(testId: string) {
-    // Step 1: Delete associated results to avoid foreign key violations.
-    const { error: resultsError } = await supabase
-        .from('test_results')
-        .delete()
-        .eq('test_id', testId);
-    if (resultsError) throw resultsError;
-
-    // Step 2: Delete associated questions. (Safer than relying on CASCADE)
-    const { error: questionsError } = await supabase
-        .from('questions')
-        .delete()
-        .eq('test_id', testId);
-    if (questionsError) throw questionsError;
-
-    // Step 3: Delete the test itself.
-    const { error: testError } = await supabase
-        .from('tests')
-        .delete()
-        .eq('id', testId);
-    if (testError) throw testError;
-    
+    // FIX: Invoke a secure edge function to delete the test.
+    // This uses the service_role_key to bypass RLS policies that were
+    // causing "permission denied for table users" errors. The function
+    // includes its own security checks for ownership.
+    const { error } = await supabase.functions.invoke('delete-test', {
+      body: { testId },
+    });
+    if (error) throw error;
     return true;
   },
 
   async getTests() {
-    const { data, error } = await supabase
-        .from('tests')
-        .select(`
-            *,
-            questions (
-                *
-            )
-        `)
-        .order('created_at', { ascending: false });
-
+    // FIX: Invoke a secure edge function to fetch all tests.
+    // This bypasses the RLS policy that caused "permission denied" errors
+    // when loading the dashboard. The data mapping logic is now also
+    // handled inside the edge function.
+    const { data, error } = await supabase.functions.invoke('get-tests');
     if (error) throw error;
     return data as Test[];
   },
@@ -137,13 +65,18 @@ export const dataService = {
   },
 
   async getTestResults(testId: string) {
-    const { data, error } = await supabase
-      .from('test_results')
-      .select('*')
-      .eq('test_id', testId)
-      .order('submitted_at', { ascending: false });
+    const { data, error } = await supabase.functions.invoke('get-submissions', {
+      body: { testId },
+    });
+    
+    if (error) {
+      // Supabase edge function errors can be tricky. The real error message
+      // from the function's Response object often gets wrapped.
+      // We will throw the original error message, which is now controlled by our edge function
+      // and will be more informative than a generic RLS error.
+      throw error;
+    }
 
-    if (error) throw error;
     return data as TestResult[];
   },
 

@@ -39,7 +39,7 @@ const DashboardView: React.FC<DashboardProps> = ({ navigateTo, onStartTest, onEd
             setTests(testsData);
 
             if (profile?.role === 'student' && profile.id) {
-                const submissionsData = await dataService.getMyTestResults(profile.id);
+                const submissionsData = await dataService.getMyTestResults();
                 setMySubmissions(submissionsData);
             }
         } catch (err: any) {

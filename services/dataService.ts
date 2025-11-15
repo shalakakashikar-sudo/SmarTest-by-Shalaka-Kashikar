@@ -1,3 +1,4 @@
+
 import { supabase } from './supabase';
 import type { Test, TestResult, EvaluationResult } from '../types';
 
@@ -80,13 +81,12 @@ export const dataService = {
     return data as TestResult[];
   },
 
-  async getMyTestResults(studentId: string) {
-    const { data, error } = await supabase
-      .from('test_results')
-      .select('*')
-      .eq('student_id', studentId)
-      .order('submitted_at', { ascending: false });
-
+  async getMyTestResults() {
+    // FIX: Invoke a secure edge function to fetch the student's own test results.
+    // This bypasses RLS policies that were incorrectly checking the 'users' table
+    // and causing "permission denied" errors for students.
+    const { data, error } = await supabase.functions.invoke('get-my-results');
+    
     if (error) throw error;
     return data as TestResult[];
   },

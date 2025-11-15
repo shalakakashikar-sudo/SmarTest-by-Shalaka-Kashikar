@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { dataService } from '../services/dataService';
@@ -392,6 +393,24 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, update
         updateQuestion(question.tempId, { comprehensionQuestions: updatedCompQs });
     };
 
+    // FIX: A robust handler for the word limit input.
+    // This prevents invalid data (like NaN) from entering the state and being sent
+    // to the server, which was causing the "non-2xx" error. It also fixes the
+    // UI bug where the input value appeared to change unexpectedly.
+    const handleWordLimitChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        // FIX: Cast event target to 'any' to access the 'value' property, resolving a TypeScript type error.
+        const value = (e.target as any).value;
+        if (value === '' || value === null) {
+            updateQuestion(question.tempId, { expectedWordLimit: null });
+        } else {
+            const num = parseInt(value, 10);
+            // Only update if it's a valid, non-negative integer.
+            if (!isNaN(num) && num >= 0) {
+                updateQuestion(question.tempId, { expectedWordLimit: num });
+            }
+        }
+    };
+
 
     return (
         <div className="p-4 border rounded-lg bg-gray-50 dark:bg-slate-900/50 dark:border-slate-700 relative">
@@ -527,8 +546,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, update
                 </div>
                  <div>
                     <label className="block text-sm font-medium dark:text-gray-300">Word Limit (Optional)</label>
-                    {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                    <input type="number" value={question.expectedWordLimit ?? ''} onChange={e => updateQuestion(question.tempId, { expectedWordLimit: (e.target as any).value ? parseInt((e.target as any).value) : null })} className={commonInputClasses} />
+                    <input type="number" value={question.expectedWordLimit ?? ''} onChange={handleWordLimitChange} className={commonInputClasses} min="0" />
                 </div>
                 {(question.type === 'short-answer' || question.type === 'long-answer') ? (
                     <>

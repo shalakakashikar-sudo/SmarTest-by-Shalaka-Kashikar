@@ -56,9 +56,9 @@ const QuestionBreakdown: React.FC<{ question: Question, answer: any, score: any,
         <div className="flex justify-between items-start mb-4">
             <h4 className="font-semibold text-gray-800 text-lg dark:text-slate-200">
                 Question {index + 1}
-                {(question.type === 'short-answer' || question.type === 'long-answer') && question.expectedWordLimit && (
+                {(question.type === 'short-answer' || question.type === 'long-answer') && question.expected_word_limit && (
                     <span className="text-sm font-normal text-gray-500 ml-2 dark:text-gray-400">
-                        (Word Limit: {question.expectedWordLimit})
+                        (Word Limit: {question.expected_word_limit})
                     </span>
                 )}
             </h4>
@@ -102,7 +102,7 @@ const DisplayAnswer: React.FC<{answer: any, question: Question}> = ({ answer, qu
     if (question.type === 'reading-comprehension') {
         return (
             <div className="space-y-2">
-                {(question.comprehensionQuestions || []).map((compQ, index) => {
+                {(question.comprehension_questions || []).map((compQ, index) => {
                     const studentAnswer = answer[index];
                     let display;
 

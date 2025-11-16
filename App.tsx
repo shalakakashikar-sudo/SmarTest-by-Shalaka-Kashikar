@@ -26,6 +26,7 @@ const App: React.FC = () => {
   const [currentTestToView, setCurrentTestToView] = useState<Test | null>(null);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [currentSubmissionToView, setCurrentSubmissionToView] = useState<TestResult | null>(null);
+  const [currentTestForResults, setCurrentTestForResults] = useState<Test | null>(null);
 
 
   useEffect(() => {
@@ -71,15 +72,19 @@ const App: React.FC = () => {
 
   const handleSubmitTest = (result: TestResult) => {
     setTestResult(result);
+    // When a test is submitted, we have the full test object in currentTestToTake
+    setCurrentTestForResults(currentTestToTake);
     navigateTo('results');
   };
   
   const handleRetakeTest = () => {
       if (currentTestToTake) {
           navigateTo('take-test');
+      } else if (currentTestForResults) {
+          // If retaking from the results screen, use the test from there.
+          setCurrentTestToTake(currentTestForResults);
+          navigateTo('take-test');
       } else {
-          // If retaking from a past result, the test to take might not be set.
-          // In a real app, we'd fetch the test details again. For now, go to dashboard.
           navigateTo('dashboard');
       }
   };
@@ -94,10 +99,10 @@ const App: React.FC = () => {
     navigateTo('submission-detail');
   };
   
-  const handleViewResultDetails = (result: TestResult) => {
-    // This function enables viewing past results from the student dashboard
+  const handleViewResultDetails = (result: TestResult, test: Test) => {
     setTestResult(result);
-    setCurrentTestToTake(null); // Clear the test-to-take context
+    // When viewing a past result, we get the test object from the dashboard
+    setCurrentTestForResults(test);
     navigateTo('results');
   };
 
@@ -112,7 +117,7 @@ const App: React.FC = () => {
       onStartTest: handleStartTest,
       onViewSubmissions: handleViewSubmissions,
       onEditTest: handleEditTest,
-      onViewResultDetails: handleViewResultDetails, // Pass the new handler
+      onViewResultDetails: handleViewResultDetails,
     };
 
     switch (view) {
@@ -142,8 +147,8 @@ const App: React.FC = () => {
           <DashboardView {...dashboardProps} />
         );
       case 'results':
-        return testResult ? (
-          <ResultsView result={testResult} navigateTo={navigateTo} onRetakeTest={handleRetakeTest} />
+        return testResult && currentTestForResults ? (
+          <ResultsView result={testResult} test={currentTestForResults} navigateTo={navigateTo} onRetakeTest={handleRetakeTest} />
         ) : (
           <DashboardView {...dashboardProps} />
         );

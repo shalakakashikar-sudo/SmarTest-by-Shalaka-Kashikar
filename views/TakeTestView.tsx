@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { aiService } from '../services/aiService';
@@ -308,7 +307,7 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
                     <MiniToolbar onFormat={handleFormat(answerTextareaRef, (newValue) => onAnswerChange(index, newValue))} />
                     {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
                     <textarea ref={answerTextareaRef} className={commonTextareaClasses} rows={3} placeholder="Enter your answer" value={typeof answer === 'string' ? answer : ''} onChange={e => onAnswerChange(index, (e.target as any).value)} />
-                    <WordCounter text={typeof answer === 'string' ? answer : ''} limit={question.expectedWordLimit} />
+                    <WordCounter text={typeof answer === 'string' ? answer : ''} limit={question.expected_word_limit} />
                 </>
             );
             break;
@@ -318,7 +317,7 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
                     <MiniToolbar onFormat={handleFormat(answerTextareaRef, (newValue) => onAnswerChange(index, newValue))} />
                     {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
                     <textarea ref={answerTextareaRef} className={commonTextareaClasses} rows={6} placeholder="Write your detailed answer here" value={typeof answer === 'string' ? answer : ''} onChange={e => onAnswerChange(index, (e.target as any).value)} />
-                    <WordCounter text={typeof answer === 'string' ? answer : ''} limit={question.expectedWordLimit} />
+                    <WordCounter text={typeof answer === 'string' ? answer : ''} limit={question.expected_word_limit} />
                 </>
             );
             break;
@@ -331,7 +330,7 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
                     </div>
                     <h5 className="font-semibold text-gray-800 mb-2 dark:text-slate-200">Comprehension Questions:</h5>
                     <div className="space-y-4">
-                    {(question.comprehensionQuestions || []).map((compQ, compIndex) => {
+                    {(question.comprehension_questions || []).map((compQ, compIndex) => {
                         const compAnswer = (typeof answer === 'object' && answer[compIndex]) || '';
                         let compAnswerInput;
 

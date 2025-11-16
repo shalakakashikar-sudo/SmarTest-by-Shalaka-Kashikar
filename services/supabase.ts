@@ -12,32 +12,16 @@ export const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ
 
 // --- Do not change the code below this line ---
 
-// FIX: Use a global object (`window`) for the in-memory store.
-// This is a robust solution for unusual environments that might reset module-level
-// state, which could cause session loss. This makes the in-memory session as
-// persistent as the window object itself, but it will still be cleared on a
-// full page refresh.
-if (!(window as any)._supabaseInMemoryStorage) {
-  (window as any)._supabaseInMemoryStorage = new Map<string, string>();
-}
-const inMemoryStorage: Map<string, string> = (window as any)._supabaseInMemoryStorage;
-
-const customStorageAdapter = {
-  getItem: (key: string): string | null => {
-    return inMemoryStorage.get(key) || null;
-  },
-  setItem: (key: string, value: string): void => {
-    inMemoryStorage.set(key, value);
-  },
-  removeItem: (key: string): void => {
-    inMemoryStorage.delete(key);
-  },
-};
-
+// Initialize the Supabase client.
+// By default, Supabase uses localStorage for session persistence, which is the
+// standard and most robust method for web applications. This change removes the
+// previous in-memory storage adapter, which caused sessions to be lost on
+// page reloads, fixing the automatic logout issue.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: customStorageAdapter,
-    // Explicitly set persistSession to true to ensure the client uses the storage adapter.
+    // We are no longer providing a custom 'storage' adapter.
+    // Supabase will default to using localStorage, which correctly persists
+    // the user's session across page reloads.
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false,

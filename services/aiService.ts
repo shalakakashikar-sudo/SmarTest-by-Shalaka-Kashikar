@@ -1,6 +1,3 @@
-
-
-
 import { supabase } from './supabase';
 import { functionService } from './functionService';
 import type { Question, EvaluationResult } from '../types';
@@ -47,8 +44,9 @@ export const aiService = {
       const totalAwardedMarks = evaluationData.questionScores.reduce((sum, score) => sum + (score.score || 0), 0);
       
       const totalPossibleMarks = questions.reduce((total, q) => {
-        if (q.type === 'reading-comprehension' && q.comprehensionQuestions) {
-          return total + q.comprehensionQuestions.reduce((compTotal, compQ) => compTotal + (compQ.marks || 0), 0);
+        // FIX: Corrected property access from `comprehensionQuestions` to `comprehension_questions` to match the `Question` type.
+        if (q.type === 'reading-comprehension' && q.comprehension_questions) {
+          return total + q.comprehension_questions.reduce((compTotal, compQ) => compTotal + (compQ.marks || 0), 0);
         }
         return total + (q.marks || 0);
       }, 0);
@@ -67,8 +65,9 @@ export const aiService = {
         const question = questions[index];
         let maxMarks = question.marks;
 
-        if (question.type === 'reading-comprehension' && question.comprehensionQuestions) {
-          maxMarks = question.comprehensionQuestions.reduce((sum, cq) => sum + (cq.marks || 0), 0);
+        // FIX: Corrected property access from `comprehensionQuestions` to `comprehension_questions` to match the `Question` type.
+        if (question.type === 'reading-comprehension' && question.comprehension_questions) {
+          maxMarks = question.comprehension_questions.reduce((sum, cq) => sum + (cq.marks || 0), 0);
         }
         
         return { ...qScore, maxMarks: maxMarks };

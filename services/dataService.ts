@@ -6,11 +6,13 @@ import type { Test, TestResult, EvaluationResult } from '../types';
 
 export const dataService = {
   async createTest(test: Test) {
+    // Reroute to the new unified 'save-test' function which now handles creation.
     return await functionService.invoke('save-test', test);
   },
 
   async updateTest(test: Test) {
     if (!test.id) throw new Error("Test ID is required for updating.");
+    // This now points to the new, robust 'save-test' function.
     return await functionService.invoke('save-test', test);
   },
 

@@ -16,12 +16,12 @@ export type QuestionType =
 
 export interface ComprehensionQuestion {
   question: string;
-  sampleAnswer?: string;
+  sample_answer?: string;
   type: 'short-answer' | 'multiple-choice' | 'true-false';
   marks: number;
-  markingScheme?: string | null;
+  marking_scheme?: string | null;
   options?: string[];
-  correctAnswer?: string;
+  correct_answer?: string;
 }
 
 export interface Question {
@@ -36,12 +36,12 @@ export interface Question {
     audio?: string | null;
   };
   options?: string[];
-  correctAnswer?: string;
+  correct_answer?: string;
   passage?: string;
-  comprehensionQuestions?: ComprehensionQuestion[];
-  expectedWordLimit?: number | null;
-  markingScheme?: string | null;
-  sampleAnswer?: string | null;
+  comprehension_questions?: ComprehensionQuestion[];
+  expected_word_limit?: number | null;
+  marking_scheme?: string | null;
+  sample_answer?: string | null;
 }
 
 export interface Test {

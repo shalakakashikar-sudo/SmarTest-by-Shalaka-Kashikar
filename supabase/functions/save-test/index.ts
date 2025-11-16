@@ -12,62 +12,8 @@ declare const Deno: any;
 
 function getRequiredEnv(key: string): string {
   const value = Deno.env.get(key);
-  if (!value) {
-    throw new Error(`Function failed: Missing required environment variable "${key}".`);
-  }
+  if (!value) throw new Error(`Function failed: Missing required environment variable "${key}".`);
   return value;
-}
-
-/**
- * A comprehensive mapping function to convert a question object from the frontend's
- * camelCase format to the database's required snake_case format.
- * This is crucial for preventing database errors due to mismatched column names.
- * @param question - The question object from the frontend.
- * @param testId - The ID of the parent test.
- * @returns A new question object formatted for the database.
- */
-function mapQuestionToDbFormat(question: any, testId: string) {
-  const {
-    id, // Exclude frontend-only temp IDs
-    tempId, // Exclude frontend-only temp IDs
-    correctAnswer,
-    expectedWordLimit,
-    markingScheme,
-    sampleAnswer,
-    comprehensionQuestions,
-    ...restOfQuestion
-  } = question;
-
-  const dbQuestion: any = {
-    ...restOfQuestion,
-    test_id: testId,
-  };
-
-  // Map all potentially camelCased fields to snake_case
-  if (correctAnswer !== undefined) dbQuestion.correct_answer = correctAnswer;
-  if (expectedWordLimit !== undefined && expectedWordLimit !== null) dbQuestion.expected_word_limit = expectedWordLimit;
-  if (markingScheme !== undefined) dbQuestion.marking_scheme = markingScheme;
-  if (sampleAnswer !== undefined) dbQuestion.sample_answer = sampleAnswer;
-  
-  // Recursively map sub-questions for reading comprehension
-  if (comprehensionQuestions && Array.isArray(comprehensionQuestions)) {
-    dbQuestion.comprehension_questions = comprehensionQuestions.map(cq => {
-      const {
-        correctAnswer: cqCorrectAnswer,
-        markingScheme: cqMarkingScheme,
-        sampleAnswer: cqSampleAnswer,
-        ...restOfCq
-      } = cq;
-      
-      const dbCq: any = { ...restOfCq };
-      if (cqCorrectAnswer !== undefined) dbCq.correct_answer = cqCorrectAnswer;
-      if (cqMarkingScheme !== undefined) dbCq.marking_scheme = cqMarkingScheme;
-      if (cqSampleAnswer !== undefined) dbCq.sample_answer = cqSampleAnswer;
-      return dbCq;
-    });
-  }
-
-  return dbQuestion;
 }
 
 serve(async (req) => {
@@ -78,100 +24,60 @@ serve(async (req) => {
   try {
     const supabaseUrl = getRequiredEnv('SUPABASE_URL');
     const supabaseAnonKey = getRequiredEnv('SUPABASE_ANON_KEY');
-    const serviceRoleKey = getRequiredEnv('SUPABASE_SERVICE_ROLE_KEY');
-
-    // 1. Authenticate user and check role
+    
+    // Authenticate the user and check their role
     const authorization = req.headers.get('Authorization');
-    if (!authorization) {
-        return new Response(JSON.stringify({ error: 'Missing authorization header.' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-
+    if (!authorization) throw new Error('Missing authorization header.');
+    
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authorization } },
       auth: { autoRefreshToken: false, persistSession: false }
     });
-
-    const { data: { user } } = await userClient.auth.getUser();
-
-    if (!user) {
-      return new Response(JSON.stringify({ error: 'User not authenticated.' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-
-    const { role } = user.user_metadata;
-    if (role !== 'teacher' && role !== 'admin') {
-        return new Response(JSON.stringify({ error: 'Permission denied. User is not a teacher or admin.' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-
-    // 2. Get test payload from body
-    const test = await req.json();
-    if (!test || !test.title || !test.questions) {
-        return new Response(JSON.stringify({ error: 'Invalid test payload.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
     
-    // 3. Create admin client to perform database operations
+    const { data: { user }, error: userError } = await userClient.auth.getUser();
+    if (userError || !user) throw new Error(`Authentication failed: ${userError?.message || 'No user found'}`);
+    
+    const { role } = user.user_metadata;
+    if (role !== 'teacher' && role !== 'admin') throw new Error('Permission denied. User is not a teacher or admin.');
+
+    // Parse the test payload from the request
+    const test = await req.json();
+    if (!test || !test.title || !test.questions) throw new Error('Invalid test payload. Missing title or questions.');
+
+    // Create a service role client to call the database function
+    // We use the service role key because the RPC needs to bypass RLS.
+    // The security is handled inside the RPC function itself.
+    const serviceRoleKey = getRequiredEnv('SUPABASE_SERVICE_ROLE_KEY');
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     });
+    
+    // Call the database function to handle the upsert transactionally
+    const { data: testId, error: rpcError } = await adminClient.rpc('create_or_update_test', {
+      p_test_id: test.id || null,
+      p_user_id: user.id,
+      p_title: test.title,
+      p_class: test.class,
+      p_timer: test.timer,
+      p_questions: test.questions
+    });
 
-    let savedTestData;
-
-    if (test.id) { // UPDATE MODE
-      // SECURITY CHECK: Verify ownership before updating
-      const { data: existingTest, error: fetchError } = await adminClient.from('tests').select('created_by').eq('id', test.id).single();
-      if (fetchError) throw new Error(`Could not find test to update: ${fetchError.message}`);
-      
-      // An admin can edit any test, a teacher must be the owner.
-      if (role !== 'admin' && existingTest.created_by !== user.id) {
-        return new Response(JSON.stringify({ error: 'Permission denied. You do not own this test.' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-
-      // Proceed with update logic
-      const { data: testData, error: testError } = await adminClient
-        .from('tests')
-        .update({ title: test.title, class: test.class, timer: test.timer, total_marks: test.total_marks, total_questions: test.questions.length })
-        .eq('id', test.id)
-        .select()
-        .single();
-      if (testError) throw testError;
-
-      // Atomically replace all questions for the test
-      await adminClient.from('questions').delete().eq('test_id', test.id);
-      
-      const questionsToInsert = test.questions.map((q: any) => mapQuestionToDbFormat(q, test.id));
-
-      const { error: questionsError } = await adminClient.from('questions').insert(questionsToInsert);
-      if (questionsError) throw questionsError;
-      
-      savedTestData = { ...testData, questions: test.questions };
-
-    } else { // CREATE MODE
-      // Proceed with create logic
-      const { data: testData, error: testError } = await adminClient
-        .from('tests')
-        .insert({ title: test.title, class: test.class, timer: test.timer, total_marks: test.total_marks, created_by: user.id, total_questions: test.questions.length })
-        .select()
-        .single();
-      if (testError) throw testError;
-      
-      const questionsToInsert = test.questions.map((q: any) => mapQuestionToDbFormat(q, testData.id));
-
-      const { error: questionsError } = await adminClient.from('questions').insert(questionsToInsert);
-      if (questionsError) {
-        // Rollback test creation if questions fail to insert
-        await adminClient.from('tests').delete().eq('id', testData.id);
-        throw questionsError;
-      }
-
-      const questionsWithId = test.questions.map((q: any) => ({ ...q, test_id: testData.id }));
-      savedTestData = { ...testData, questions: questionsWithId };
+    if (rpcError) {
+        // The RPC will throw a specific error if permission is denied or something else goes wrong
+        console.error('RPC Error:', rpcError);
+        throw new Error(rpcError.message || 'Database operation failed.');
     }
 
-    return new Response(JSON.stringify(savedTestData), {
+    // The RPC returns the test ID. We can return the original test payload
+    // with the new/updated ID for consistency with the old API.
+    const finalTest = { ...test, id: testId };
+
+    return new Response(JSON.stringify(finalTest), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
-    console.error('Error in save-test function:', error.message);
+    console.error('Error in upsert-test function:', error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

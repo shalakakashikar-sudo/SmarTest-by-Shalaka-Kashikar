@@ -12,7 +12,7 @@ interface DashboardProps {
   onStartTest: (test: Test) => void;
   onEditTest: (test: Test) => void;
   onViewSubmissions: (test: Test) => void;
-  onViewResultDetails: (result: TestResult) => void;
+  onViewResultDetails: (result: TestResult, test: Test) => void;
 }
 
 interface ProgressData {
@@ -118,6 +118,15 @@ const DashboardView: React.FC<DashboardProps> = ({ navigateTo, onStartTest, onEd
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleString();
+  };
+
+  const handleViewDetailsClick = (result: TestResult) => {
+    const associatedTest = tests.find(t => t.id === result.test_id);
+    if (associatedTest) {
+      onViewResultDetails(result, associatedTest);
+    } else {
+      addToast('Could not find the original test for this submission.', 'error');
+    }
   };
 
 
@@ -313,7 +322,7 @@ const DashboardView: React.FC<DashboardProps> = ({ navigateTo, onStartTest, onEd
                         Score: <span className="font-bold">{result.evaluation.overallScore}%</span> | Submitted: {formatDate(result.submitted_at)}
                       </p>
                     </div>
-                    <button onClick={() => onViewResultDetails(result)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg">View Details</button>
+                    <button onClick={() => handleViewDetailsClick(result)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg">View Details</button>
                   </div>
                 )) : <p className="dark:text-gray-400">You have not submitted any tests yet.</p>}
               </div>

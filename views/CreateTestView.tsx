@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { dataService } from '../services/dataService';
@@ -116,8 +113,8 @@ const CreateTestView: React.FC<CreateTestViewProps> = ({ navigateTo, testToEdit,
 
 
     const totalMarks = questions.reduce((total, q) => {
-      if (q.type === 'reading-comprehension' && q.comprehensionQuestions) {
-        return total + q.comprehensionQuestions.reduce((compTotal, compQ) => compTotal + (compQ.marks || 0), 0);
+      if (q.type === 'reading-comprehension' && q.comprehension_questions) {
+        return total + q.comprehension_questions.reduce((compTotal, compQ) => compTotal + (compQ.marks || 0), 0);
       }
       return total + (q.marks || 0);
     }, 0);
@@ -129,7 +126,7 @@ const CreateTestView: React.FC<CreateTestViewProps> = ({ navigateTo, testToEdit,
             text: '',
             marks: 1,
             options: ['', '', '', ''],
-            correctAnswer: 'A',
+            correct_answer: 'A',
         };
         setQuestions([...questions, newQuestion]);
     };
@@ -343,71 +340,70 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, update
         // Set defaults for new type
         if (newType === 'multiple-choice') {
             updatedFields.options = ['', '', '', ''];
-            updatedFields.correctAnswer = 'A';
+            updatedFields.correct_answer = 'A';
         } else if (newType === 'true-false') {
             updatedFields.options = ['True', 'False'];
-            updatedFields.correctAnswer = 'True';
+            updatedFields.correct_answer = 'True';
         } else if (newType === 'reading-comprehension') {
             updatedFields.passage = '';
-            updatedFields.comprehensionQuestions = [];
+            updatedFields.comprehension_questions = [];
             updatedFields.marks = 0; // Marks will be sum of sub-questions
         } else {
             delete updatedFields.options;
-            delete updatedFields.comprehensionQuestions;
+            delete updatedFields.comprehension_questions;
         }
         updateQuestion(question.tempId, updatedFields);
     };
 
     const addComprehensionQuestion = () => {
-        const newCompQ: ComprehensionQuestion = { question: '', type: 'short-answer', marks: 1, sampleAnswer: '' };
-        updateQuestion(question.tempId, { comprehensionQuestions: [...(question.comprehensionQuestions || []), newCompQ] });
+        const newCompQ: ComprehensionQuestion = { question: '', type: 'short-answer', marks: 1, sample_answer: '' };
+        updateQuestion(question.tempId, { comprehension_questions: [...(question.comprehension_questions || []), newCompQ] });
     };
 
     const updateComprehensionQuestion = (compIndex: number, field: keyof ComprehensionQuestion, value: any) => {
-        const updatedCompQs = (question.comprehensionQuestions || []).map((q, i) => (i === compIndex ? { ...q, [field]: value } : q));
-        updateQuestion(question.tempId, { comprehensionQuestions: updatedCompQs });
+        const updatedCompQs = (question.comprehension_questions || []).map((q, i) => (i === compIndex ? { ...q, [field]: value } : q));
+        updateQuestion(question.tempId, { comprehension_questions: updatedCompQs });
     };
     
     const removeComprehensionQuestion = (compIndex: number) => {
-        const updatedCompQs = (question.comprehensionQuestions || []).filter((_, i) => i !== compIndex);
-        updateQuestion(question.tempId, { comprehensionQuestions: updatedCompQs });
+        const updatedCompQs = (question.comprehension_questions || []).filter((_, i) => i !== compIndex);
+        updateQuestion(question.tempId, { comprehension_questions: updatedCompQs });
     };
     
     const handleComprehensionTypeChange = (compIndex: number, newType: 'short-answer' | 'multiple-choice' | 'true-false') => {
-        const updatedCompQs = [...(question.comprehensionQuestions || [])];
+        const updatedCompQs = [...(question.comprehension_questions || [])];
         const updatedCompQ: ComprehensionQuestion = { ...updatedCompQs[compIndex], type: newType };
 
         // Set defaults for the new type
         if (newType === 'multiple-choice') {
             updatedCompQ.options = updatedCompQ.options?.length === 4 ? updatedCompQ.options : ['', '', '', ''];
-            updatedCompQ.correctAnswer = updatedCompQ.correctAnswer || 'A';
+            updatedCompQ.correct_answer = updatedCompQ.correct_answer || 'A';
         } else if (newType === 'true-false') {
             updatedCompQ.options = ['True', 'False'];
-            updatedCompQ.correctAnswer = updatedCompQ.correctAnswer || 'True';
+            updatedCompQ.correct_answer = updatedCompQ.correct_answer || 'True';
         } else { // short-answer
             delete updatedCompQ.options;
-            delete updatedCompQ.correctAnswer;
+            delete updatedCompQ.correct_answer;
         }
 
         updatedCompQs[compIndex] = updatedCompQ;
-        updateQuestion(question.tempId, { comprehensionQuestions: updatedCompQs });
+        updateQuestion(question.tempId, { comprehension_questions: updatedCompQs });
     };
 
-    // FIX: A robust handler for the word limit input.
-    // This prevents invalid data (like NaN) from entering the state and being sent
-    // to the server, which was causing the "non-2xx" error. It also fixes the
-    // UI bug where the input value appeared to change unexpectedly.
     const handleWordLimitChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        // Sanitize the input value by removing any non-digit characters.
+        // This provides a much better user experience than parseInt, as it
+        // prevents invalid characters from being entered and immediately shows
+        // the clean, numeric result. It completely fixes the bug where
+        // typing "30-40" would result in a strange number.
         // FIX: Cast event target to 'any' to access the 'value' property, resolving a TypeScript type error.
-        const value = (e.target as any).value;
-        if (value === '' || value === null) {
-            updateQuestion(question.tempId, { expectedWordLimit: null });
+        const sanitizedValue = (e.target as any).value.replace(/[^0-9]/g, '');
+
+        if (sanitizedValue === '') {
+            updateQuestion(question.tempId, { expected_word_limit: null });
         } else {
-            const num = parseInt(value, 10);
-            // Only update if it's a valid, non-negative integer.
-            if (!isNaN(num) && num >= 0) {
-                updateQuestion(question.tempId, { expectedWordLimit: num });
-            }
+            const num = parseInt(sanitizedValue, 10);
+            updateQuestion(question.tempId, { expected_word_limit: num });
         }
     };
 
@@ -444,7 +440,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, update
                     {question.options?.map((opt, i) => (
                         <div key={i} className="flex items-center space-x-2 mb-2">
                              {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                             <input type="radio" name={`correct-${question.tempId}`} value={String.fromCharCode(65 + i)} checked={question.correctAnswer === String.fromCharCode(65 + i)} onChange={e => updateQuestion(question.tempId, { correctAnswer: (e.target as any).value })} />
+                             <input type="radio" name={`correct-${question.tempId}`} value={String.fromCharCode(65 + i)} checked={question.correct_answer === String.fromCharCode(65 + i)} onChange={e => updateQuestion(question.tempId, { correct_answer: (e.target as any).value })} />
                             <span className="font-mono">{String.fromCharCode(65 + i)}.</span>
                             {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
                             <input type="text" value={opt} onChange={e => {
@@ -457,8 +453,8 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, update
             )}
              {question.type === 'true-false' && (
                  <div className="mt-4 flex space-x-4">
-                     <label><input type="radio" name={`correct-${question.tempId}`} value="True" checked={question.correctAnswer === 'True'} onChange={e => updateQuestion(question.tempId, { correctAnswer: 'True' })} /> True</label>
-                     <label><input type="radio" name={`correct-${question.tempId}`} value="False" checked={question.correctAnswer === 'False'} onChange={e => updateQuestion(question.tempId, { correctAnswer: 'False' })} /> False</label>
+                     <label><input type="radio" name={`correct-${question.tempId}`} value="True" checked={question.correct_answer === 'True'} onChange={e => updateQuestion(question.tempId, { correct_answer: 'True' })} /> True</label>
+                     <label><input type="radio" name={`correct-${question.tempId}`} value="False" checked={question.correct_answer === 'False'} onChange={e => updateQuestion(question.tempId, { correct_answer: 'False' })} /> False</label>
                  </div>
              )}
              {question.type === 'reading-comprehension' && (
@@ -469,7 +465,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, update
                          <textarea value={question.passage} onChange={e => updateQuestion(question.tempId, { passage: (e.target as any).value })} className={commonInputClasses} rows={5} />
                      </div>
                      <div className="space-y-3">
-                        {question.comprehensionQuestions?.map((cq, cqIndex) => (
+                        {question.comprehension_questions?.map((cq, cqIndex) => (
                              <div key={cqIndex} className="p-3 border rounded bg-white dark:bg-slate-800 space-y-2">
                                 <div className="flex justify-between items-center">
                                     <p className="font-medium text-sm text-gray-600 dark:text-gray-300">Sub-question {cqIndex + 1}</p>
@@ -493,28 +489,31 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, update
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Marks:</label>
-                                        {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                                        <input type="number" value={cq.marks} onChange={e => updateComprehensionQuestion(cqIndex, 'marks', parseInt((e.target as any).value))} className={`${commonInputClasses} !w-24`} placeholder="marks" />
+                                        <input type="number" value={cq.marks} onChange={e => {
+                                            const rawValue = (e.target as any).value;
+                                            const marks = rawValue === '' ? 0 : parseInt(rawValue, 10);
+                                            updateComprehensionQuestion(cqIndex, 'marks', isNaN(marks) ? 0 : marks);
+                                        }} className={`${commonInputClasses} !w-24`} placeholder="marks" />
                                     </div>
                                 </div>
 
                                 <textarea
-                                    value={cq.markingScheme ?? ''}
-                                    onChange={e => updateComprehensionQuestion(cqIndex, 'markingScheme', (e.target as any).value)}
+                                    value={cq.marking_scheme ?? ''}
+                                    onChange={e => updateComprehensionQuestion(cqIndex, 'marking_scheme', (e.target as any).value)}
                                     className={`${commonInputClasses} text-sm`}
                                     rows={2}
                                     placeholder="Optional: Marking scheme for this sub-question"
                                 />
                                 
                                 {cq.type === 'short-answer' && (
-                                    <textarea value={cq.sampleAnswer ?? ''} onChange={e => updateComprehensionQuestion(cqIndex, 'sampleAnswer', (e.target as any).value)} className={`${commonInputClasses} text-sm`} rows={2} placeholder="Sample answer for AI evaluation" />
+                                    <textarea value={cq.sample_answer ?? ''} onChange={e => updateComprehensionQuestion(cqIndex, 'sample_answer', (e.target as any).value)} className={`${commonInputClasses} text-sm`} rows={2} placeholder="Sample answer for AI evaluation" />
                                 )}
                                 
                                 {cq.type === 'multiple-choice' && (
                                     <div className="mt-2 pl-4 space-y-1">
                                         {cq.options?.map((opt, optIndex) => (
                                             <div key={optIndex} className="flex items-center space-x-2">
-                                                <input type="radio" name={`correct-sub-${question.tempId}-${cqIndex}`} value={String.fromCharCode(65 + optIndex)} checked={cq.correctAnswer === String.fromCharCode(65 + optIndex)} onChange={e => updateComprehensionQuestion(cqIndex, 'correctAnswer', (e.target as any).value)} />
+                                                <input type="radio" name={`correct-sub-${question.tempId}-${cqIndex}`} value={String.fromCharCode(65 + optIndex)} checked={cq.correct_answer === String.fromCharCode(65 + optIndex)} onChange={e => updateComprehensionQuestion(cqIndex, 'correct_answer', (e.target as any).value)} />
                                                 <span className="font-mono text-sm">{String.fromCharCode(65 + optIndex)}.</span>
                                                 <input type="text" value={opt} onChange={e => {
                                                     const newOptions = [...(cq.options || [])];
@@ -527,8 +526,8 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, update
                                 )}
                                 {cq.type === 'true-false' && (
                                     <div className="mt-2 pl-4 flex space-x-4 items-center">
-                                        <label className="text-sm flex items-center gap-1.5"><input type="radio" name={`correct-sub-${question.tempId}-${cqIndex}`} value="True" checked={cq.correctAnswer === 'True'} onChange={() => updateComprehensionQuestion(cqIndex, 'correctAnswer', 'True')} /> True</label>
-                                        <label className="text-sm flex items-center gap-1.5"><input type="radio" name={`correct-sub-${question.tempId}-${cqIndex}`} value="False" checked={cq.correctAnswer === 'False'} onChange={() => updateComprehensionQuestion(cqIndex, 'correctAnswer', 'False')} /> False</label>
+                                        <label className="text-sm flex items-center gap-1.5"><input type="radio" name={`correct-sub-${question.tempId}-${cqIndex}`} value="True" checked={cq.correct_answer === 'True'} onChange={() => updateComprehensionQuestion(cqIndex, 'correct_answer', 'True')} /> True</label>
+                                        <label className="text-sm flex items-center gap-1.5"><input type="radio" name={`correct-sub-${question.tempId}-${cqIndex}`} value="False" checked={cq.correct_answer === 'False'} onChange={() => updateComprehensionQuestion(cqIndex, 'correct_answer', 'False')} /> False</label>
                                     </div>
                                 )}
                             </div>
@@ -541,31 +540,42 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, update
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm font-medium dark:text-gray-300">Marks</label>
-                    {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                    <input type="number" value={question.marks} onChange={e => updateQuestion(question.tempId, { marks: parseInt((e.target as any).value) })} className={commonInputClasses} disabled={question.type === 'reading-comprehension'} />
+                    <input type="number" value={question.marks} onChange={e => {
+                        const rawValue = (e.target as any).value;
+                        const marks = rawValue === '' ? 0 : parseInt(rawValue, 10);
+                        updateQuestion(question.tempId, { marks: isNaN(marks) ? 0 : marks });
+                    }} className={commonInputClasses} disabled={question.type === 'reading-comprehension'} />
                 </div>
                  <div>
                     <label className="block text-sm font-medium dark:text-gray-300">Word Limit (Optional)</label>
-                    <input type="number" value={question.expectedWordLimit ?? ''} onChange={handleWordLimitChange} className={commonInputClasses} min="0" />
+                    <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={question.expected_word_limit ?? ''}
+                        onChange={handleWordLimitChange}
+                        className={commonInputClasses}
+                        placeholder="e.g., 100"
+                    />
                 </div>
                 {(question.type === 'short-answer' || question.type === 'long-answer') ? (
                     <>
                         <div>
                              <label className="block text-sm font-medium dark:text-gray-300">Marking Scheme (Optional)</label>
                              {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                             <textarea value={question.markingScheme ?? ''} onChange={e => updateQuestion(question.tempId, { markingScheme: (e.target as any).value })} className={commonInputClasses} rows={3} placeholder="e.g., 1 mark for definition..." />
+                             <textarea value={question.marking_scheme ?? ''} onChange={e => updateQuestion(question.tempId, { marking_scheme: (e.target as any).value })} className={commonInputClasses} rows={3} placeholder="e.g., 1 mark for definition..." />
                         </div>
                         <div>
                              <label className="block text-sm font-medium dark:text-gray-300">Sample Answer (Optional)</label>
                              {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                             <textarea value={question.sampleAnswer ?? ''} onChange={e => updateQuestion(question.tempId, { sampleAnswer: (e.target as any).value })} className={commonInputClasses} rows={3} placeholder="A model answer for AI evaluation." />
+                             <textarea value={question.sample_answer ?? ''} onChange={e => updateQuestion(question.tempId, { sample_answer: (e.target as any).value })} className={commonInputClasses} rows={3} placeholder="A model answer for AI evaluation." />
                         </div>
                     </>
                 ) : (
                     <div className="md:col-span-2">
                          <label className="block text-sm font-medium dark:text-gray-300">Marking Scheme (Optional)</label>
                          {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                         <textarea value={question.markingScheme ?? ''} onChange={e => updateQuestion(question.tempId, { markingScheme: (e.target as any).value })} className={commonInputClasses} rows={2} placeholder="e.g., 1 mark for definition, 1 mark for example..." />
+                         <textarea value={question.marking_scheme ?? ''} onChange={e => updateQuestion(question.tempId, { marking_scheme: (e.target as any).value })} className={commonInputClasses} rows={2} placeholder="e.g., 1 mark for definition, 1 mark for example..." />
                     </div>
                 )}
             </div>

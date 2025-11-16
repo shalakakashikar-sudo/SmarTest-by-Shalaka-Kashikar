@@ -84,9 +84,9 @@ const PreviewQuestionDisplay: React.FC<{ question: Question; index: number; }> =
             answerInput = (
                 <>
                     <textarea className={commonTextareaClasses} rows={3} placeholder="Student will type their answer here..." disabled />
-                    {question.expectedWordLimit && (
+                    {question.expected_word_limit && (
                         <div className="text-right text-xs text-gray-500 mt-1 dark:text-gray-400">
-                            Word Limit: {question.expectedWordLimit}
+                            Word Limit: {question.expected_word_limit}
                         </div>
                     )}
                 </>
@@ -96,9 +96,9 @@ const PreviewQuestionDisplay: React.FC<{ question: Question; index: number; }> =
             answerInput = (
                 <>
                     <textarea className={commonTextareaClasses} rows={6} placeholder="Student will write their detailed answer here..." disabled />
-                    {question.expectedWordLimit && (
+                    {question.expected_word_limit && (
                         <div className="text-right text-xs text-gray-500 mt-1 dark:text-gray-400">
-                            Word Limit: {question.expectedWordLimit}
+                            Word Limit: {question.expected_word_limit}
                         </div>
                     )}
                 </>
@@ -115,7 +115,7 @@ const PreviewQuestionDisplay: React.FC<{ question: Question; index: number; }> =
                     }
                     <h5 className="font-semibold text-gray-800 mb-2 dark:text-slate-200">Comprehension Questions:</h5>
                     <div className="space-y-4">
-                        {(question.comprehensionQuestions || []).map((compQ, compIndex) => {
+                        {(question.comprehension_questions || []).map((compQ, compIndex) => {
                             let compAnswerInput;
                             if (compQ.type === 'multiple-choice') {
                                 compAnswerInput = (

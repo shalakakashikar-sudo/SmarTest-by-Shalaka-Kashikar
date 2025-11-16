@@ -1,13 +1,60 @@
 import React, { useState } from 'react';
-import type { TestResult } from '../types';
+import type { Test, TestResult, Question } from '../types';
 
 interface ResultsProps {
   result: TestResult;
+  test: Test;
   navigateTo: (view: 'dashboard') => void;
   onRetakeTest: () => void;
 }
 
-const ResultsView: React.FC<ResultsProps> = ({ result, navigateTo, onRetakeTest }) => {
+const DisplayAnswer: React.FC<{answer: any, question: Question}> = ({ answer, question }) => {
+    if (question.type === 'reading-comprehension') {
+        return (
+            <div className="space-y-2">
+                {(question.comprehension_questions || []).map((compQ, index) => {
+                    const studentAnswer = answer ? answer[index] : undefined;
+                    let display;
+
+                    if (compQ.type === 'multiple-choice') {
+                        const optionIndex = studentAnswer ? studentAnswer.charCodeAt(0) - 65 : -1;
+                        const selectedOption = compQ.options?.[optionIndex];
+                        display = <p className="text-gray-800 dark:text-slate-200">{studentAnswer ? `${studentAnswer}. ${selectedOption}` : <span className="text-gray-400 italic">No answer provided</span>}</p>;
+                    } else if (compQ.type === 'true-false') {
+                        display = <p className="text-gray-800 dark:text-slate-200">{studentAnswer || <span className="text-gray-400 italic">No answer provided</span>}</p>;
+                    } else { // short-answer
+                        display = <div className="text-gray-800 dark:text-slate-200" dangerouslySetInnerHTML={{ __html: studentAnswer || `<span class="text-gray-400 italic">No answer provided</span>` }} />;
+                    }
+
+                    return (
+                        <div key={index} className="text-sm">
+                            <p className="font-medium text-gray-600 dark:text-gray-400">{compQ.question}</p>
+                            <div className="pl-2 border-l-2 border-gray-200 dark:border-slate-600">
+                                {display}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    }
+    
+    if (question.type === 'multiple-choice') {
+        const optionIndex = answer ? answer.charCodeAt(0) - 65 : -1;
+        const selectedOption = question.options?.[optionIndex];
+        return <p className="text-gray-800 whitespace-pre-wrap dark:text-slate-200">{answer ? `${answer}. ${selectedOption}` : <span className="text-gray-400 italic">No answer provided</span>}</p>
+    }
+
+    return (
+        <div 
+            className="text-gray-800 whitespace-pre-wrap dark:text-slate-200"
+            dangerouslySetInnerHTML={{ __html: answer || `<span class="text-gray-400 italic">No answer provided</span>` }}
+        />
+    );
+};
+
+
+const ResultsView: React.FC<ResultsProps> = ({ result, test, navigateTo, onRetakeTest }) => {
   const { evaluation, test_title } = result;
   const [activeTab, setActiveTab] = useState('summary');
   const [openQuestionIndex, setOpenQuestionIndex] = useState<number | null>(null);
@@ -117,6 +164,8 @@ const ResultsView: React.FC<ResultsProps> = ({ result, navigateTo, onRetakeTest 
         <h3 className="text-2xl font-bold text-gray-800 dark:text-slate-200 mb-4">📊 Question-by-Question Breakdown</h3>
         <div className="space-y-3 border border-gray-200 dark:border-slate-700 rounded-lg p-2 sm:p-4">
           {evaluation.questionScores.map((score, index) => {
+              const question = test.questions[index];
+              if (!question) return null; // Safety check
               const qScoreInfo = getScoreInfo(score.maxMarks > 0 ? Math.round((score.score / score.maxMarks) * 100) : 0);
               const isOpen = openQuestionIndex === index;
               return (
@@ -134,9 +183,8 @@ const ResultsView: React.FC<ResultsProps> = ({ result, navigateTo, onRetakeTest 
                           <div className="p-4 border-t border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50">
                                <div className="mb-4">
                                   <h5 className="font-semibold text-gray-700 dark:text-slate-300 mb-2 flex items-center gap-2">👤 Your Answer</h5>
-                                  <div className="p-3 rounded-md bg-white dark:bg-slate-700 border dark:border-slate-600 text-sm text-gray-800 dark:text-slate-200 whitespace-pre-wrap">
-                                      {/* This part needs to be improved in SubmissionDetailView as well */}
-                                      <pre className="whitespace-pre-wrap font-sans">{JSON.stringify(result.answers[index], null, 2)}</pre>
+                                  <div className="p-3 rounded-md bg-white dark:bg-slate-700 border dark:border-slate-600 text-sm">
+                                      <DisplayAnswer answer={result.answers[index]} question={question} />
                                   </div>
                                </div>
                                <div>

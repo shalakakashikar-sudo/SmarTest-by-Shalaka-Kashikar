@@ -58,31 +58,9 @@ serve(async (req) => {
 
     if (error) throw error;
     
-    // 4. Map database snake_case to frontend camelCase.
-    const testsWithCamelCase = data.map(test => {
-        if (!test.questions) {
-            return test;
-        }
-        return {
-            ...test,
-            questions: test.questions.map((q: any) => {
-                const { comprehension_questions, sample_answer, ...rest } = q;
-                const newQ: any = { ...rest };
-                if (sample_answer) newQ.sampleAnswer = sample_answer;
-                if (comprehension_questions) {
-                    newQ.comprehensionQuestions = comprehension_questions.map((cq: any) => {
-                        const { sample_answer: cqSampleAnswer, ...cqRest } = cq;
-                        const newCq: any = { ...cqRest };
-                        if (cqSampleAnswer) newCq.sampleAnswer = cqSampleAnswer;
-                        return newCq;
-                    });
-                }
-                return newQ;
-            }),
-        };
-    });
-
-    return new Response(JSON.stringify(testsWithCamelCase), {
+    // 4. No more mapping! Return the data directly as it comes from the DB.
+    // The frontend is now responsible for handling the snake_case format.
+    return new Response(JSON.stringify(data), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 

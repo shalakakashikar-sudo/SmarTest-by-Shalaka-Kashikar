@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { dataService } from '../services/dataService';
 import { useToast } from '../contexts/ToastContext';
 import { v4 as uuidv4 } from 'uuid';
-import type { Question, QuestionType, ComprehensionQuestion, Test } from '../types';
+import type { Question, QuestionType, ComprehensionQuestion, Test, UserProfile } from '../types';
 
 interface TempQuestion extends Question {
     tempId: string;
@@ -258,8 +258,9 @@ const CreateTestView: React.FC<CreateTestViewProps> = ({ navigateTo, testToEdit,
                 </div>
             </div>
             
-            {mediaModal.isOpen && currentQuestionForMedia && (
+            {mediaModal.isOpen && currentQuestionForMedia && profile && (
                 <MediaModal
+                    profile={profile}
                     initialMedia={currentQuestionForMedia.media}
                     onClose={() => setMediaModal({ isOpen: false, questionId: null })}
                     onSave={handleSaveMedia}
@@ -270,47 +271,135 @@ const CreateTestView: React.FC<CreateTestViewProps> = ({ navigateTo, testToEdit,
 };
 
 interface MediaModalProps {
+    profile: UserProfile;
     initialMedia?: { image?: string | null; video?: string | null; audio?: string | null } | null;
     onClose: () => void;
     onSave: (mediaData: { image?: string; video?: string; audio?: string }) => void;
 }
 
-const MediaModal: React.FC<MediaModalProps> = ({ initialMedia, onClose, onSave }) => {
-    const [media, setMedia] = useState({
+const MediaInput: React.FC<{
+    label: string;
+    type: 'image' | 'video' | 'audio';
+    currentUrl: string | null | undefined;
+    file: File | null;
+    onFileChange: (file: File | null) => void;
+    onRemove: () => void;
+}> = ({ label, type, currentUrl, file, onFileChange, onRemove }) => {
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const acceptTypes = {
+        image: 'image/*',
+        video: 'video/*',
+        audio: 'audio/*'
+    };
+    return (
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">{label}</label>
+            {currentUrl ? (
+                <div className="flex items-center justify-between p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600">
+                    <span className="text-sm truncate dark:text-slate-300">{currentUrl}</span>
+                    <button onClick={onRemove} className="text-xs text-red-500 ml-2">Remove</button>
+                </div>
+            ) : file ? (
+                <div className="flex items-center justify-between p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600">
+                    <span className="text-sm truncate dark:text-slate-300">{file.name}</span>
+                    <button onClick={() => onFileChange(null)} className="text-xs text-red-500 ml-2">Clear</button>
+                </div>
+            ) : (
+                <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full p-2 border-2 border-dashed rounded-md text-sm text-gray-500 hover:border-blue-500 hover:text-blue-500 transition dark:border-slate-600 dark:text-gray-400 dark:hover:border-blue-400 dark:hover:text-blue-400"
+                >
+                    Click to upload
+                </button>
+            )}
+            <input
+                type="file"
+                ref={fileInputRef}
+                accept={acceptTypes[type]}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => onFileChange(e.target.files?.[0] || null)}
+                className="hidden"
+            />
+        </div>
+    );
+};
+
+const MediaModal: React.FC<MediaModalProps> = ({ profile, initialMedia, onClose, onSave }) => {
+    const { addToast } = useToast();
+    const [mediaUrls, setMediaUrls] = useState({
         image: initialMedia?.image || '',
         video: initialMedia?.video || '',
         audio: initialMedia?.audio || '',
     });
+    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [videoFile, setVideoFile] = useState<File | null>(null);
+    const [audioFile, setAudioFile] = useState<File | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
 
-    const handleSave = () => {
-        onSave({
-            image: media.image?.trim() || undefined,
-            video: media.video?.trim() || undefined,
-            audio: media.audio?.trim() || undefined,
-        });
+    const handleSave = async () => {
+        setIsUploading(true);
+        addToast('Uploading media...', 'info');
+        try {
+            const uploadedUrls = {
+                image: mediaUrls.image,
+                video: mediaUrls.video,
+                audio: mediaUrls.audio,
+            };
+
+            if (imageFile) {
+                uploadedUrls.image = await dataService.uploadMediaFile(profile.id, imageFile);
+            }
+            if (videoFile) {
+                uploadedUrls.video = await dataService.uploadMediaFile(profile.id, videoFile);
+            }
+            if (audioFile) {
+                uploadedUrls.audio = await dataService.uploadMediaFile(profile.id, audioFile);
+            }
+
+            onSave(uploadedUrls);
+            addToast('Media attached successfully!', 'success');
+        } catch (error: any) {
+            addToast(`Media upload failed: ${error.message}`, 'error');
+        } finally {
+            setIsUploading(false);
+        }
     };
-
+    
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
             <div className="bg-white p-8 rounded-lg shadow-2xl max-w-lg w-full mx-4 dark:bg-slate-800">
                 <h3 className="text-2xl font-bold text-gray-900 mb-4 dark:text-slate-100">📎 Attach Media</h3>
                 <div className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Image URL</label>
-                        <input type="text" value={media.image} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMedia(m => ({ ...m, image: e.target.value }))} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="https://example.com/image.png" />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Video URL</label>
-                        <input type="text" value={media.video} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMedia(m => ({ ...m, video: e.target.value }))} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="https://example.com/video.mp4" />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Audio URL</label>
-                        <input type="text" value={media.audio} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMedia(m => ({ ...m, audio: e.target.value }))} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="https://example.com/audio.mp3" />
-                    </div>
+                    <MediaInput 
+                        label="Image"
+                        type="image"
+                        currentUrl={mediaUrls.image}
+                        file={imageFile}
+                        onFileChange={setImageFile}
+                        onRemove={() => setMediaUrls(m => ({...m, image: ''}))}
+                    />
+                    <MediaInput 
+                        label="Video"
+                        type="video"
+                        currentUrl={mediaUrls.video}
+                        file={videoFile}
+                        onFileChange={setVideoFile}
+                        onRemove={() => setMediaUrls(m => ({...m, video: ''}))}
+                    />
+                    <MediaInput 
+                        label="Audio"
+                        type="audio"
+                        currentUrl={mediaUrls.audio}
+                        file={audioFile}
+                        onFileChange={setAudioFile}
+                        onRemove={() => setMediaUrls(m => ({...m, audio: ''}))}
+                    />
                 </div>
                 <div className="flex justify-end space-x-3 pt-6">
                     <button type="button" onClick={onClose} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold px-6 py-2 rounded-lg dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-100">Cancel</button>
-                    <button type="button" onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg">Save Media</button>
+                    <button type="button" onClick={handleSave} disabled={isUploading} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg disabled:bg-blue-400">
+                        {isUploading ? 'Uploading...' : 'Save Media'}
+                    </button>
                 </div>
             </div>
         </div>

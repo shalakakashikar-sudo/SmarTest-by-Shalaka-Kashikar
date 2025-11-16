@@ -50,17 +50,49 @@ serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false }
     });
     
-    // 3. Fetch all tests with their questions.
-    const { data, error } = await adminClient
+    // --- REFACTORED DATA FETCHING LOGIC ---
+    // 3. Fetch all tests first.
+    const { data: testsData, error: testsError } = await adminClient
         .from('tests')
-        .select('*, questions (*)')
+        .select('*')
         .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    
-    // 4. No more mapping! Return the data directly as it comes from the DB.
-    // The frontend is now responsible for handling the snake_case format.
-    return new Response(JSON.stringify(data), {
+    if (testsError) throw testsError;
+
+    // If there are no tests, return an empty array.
+    if (!testsData || testsData.length === 0) {
+      return new Response(JSON.stringify([]), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 4. Fetch all questions related to the retrieved tests.
+    const testIds = testsData.map(t => t.id);
+    const { data: questionsData, error: questionsError } = await adminClient
+      .from('questions')
+      .select('*')
+      .in('test_id', testIds);
+
+    if (questionsError) throw questionsError;
+
+    // 5. Manually join the questions to their respective tests.
+    const questionsByTestId = new Map<string, any[]>();
+    if (questionsData) {
+      for (const question of questionsData) {
+        if (!questionsByTestId.has(question.test_id)) {
+          questionsByTestId.set(question.test_id, []);
+        }
+        questionsByTestId.get(question.test_id)!.push(question);
+      }
+    }
+
+    const finalTests = testsData.map(test => ({
+      ...test,
+      questions: questionsByTestId.get(test.id) || []
+    }));
+
+    // 6. Return the combined data.
+    return new Response(JSON.stringify(finalTests), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 

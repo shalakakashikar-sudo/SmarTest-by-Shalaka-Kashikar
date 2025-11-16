@@ -1,8 +1,10 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { dataService } from '../services/dataService';
 import { useToast } from '../contexts/ToastContext';
 import type { AnalyticsData } from '../types';
+import { SkeletonLine } from '../components/SkeletonLoader';
 
 interface AnalyticsProps {
   navigateTo: (view: 'dashboard') => void;
@@ -38,7 +40,37 @@ const AnalyticsView: React.FC<AnalyticsProps> = ({ navigateTo }) => {
   );
   
   if (isLoading) {
-    return <div className="text-center p-8 dark:text-white">Loading analytics dashboard...</div>;
+    return (
+        <div className="space-y-8">
+            <div className="flex items-center justify-between">
+                <SkeletonLine width="w-1/3" height="h-8" />
+                <SkeletonLine width="w-36" height="h-10" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[...Array(3)].map((_, i) => (
+                    <div key={i} className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg">
+                        <div className="flex items-center space-x-4">
+                            <SkeletonLine width="w-10" height="h-10" className="!rounded-full" />
+                            <div className="flex-1 space-y-2">
+                                <SkeletonLine height="h-3" width="w-3/5" />
+                                <SkeletonLine height="h-6" width="w-2/5" />
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg space-y-4">
+                    <SkeletonLine width="w-1/2" height="h-6" />
+                    <SkeletonLine height="h-24" />
+                </div>
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg space-y-4">
+                    <SkeletonLine width="w-1/2" height="h-6" />
+                    <SkeletonLine height="h-24" />
+                </div>
+            </div>
+        </div>
+    );
   }
 
   if (!analyticsData || analyticsData.overallStats.testCount === 0) {

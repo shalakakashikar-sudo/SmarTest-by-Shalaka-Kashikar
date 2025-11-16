@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -7,6 +6,7 @@ import { authService } from '../services/authService';
 import { dataService } from '../services/dataService';
 import { useToast } from '../contexts/ToastContext';
 import type { Test, TestResult } from '../types';
+import { SkeletonCard } from '../components/SkeletonLoader';
 
 interface DashboardProps {
   navigateTo: (view: 'create-test' | 'edit-test' | 'take-test' | 'submissions' | 'user-management' | 'analytics') => void;
@@ -30,6 +30,7 @@ const DashboardView: React.FC<DashboardProps> = ({ navigateTo, onStartTest, onEd
   const [mySubmissions, setMySubmissions] = useState<TestResult[]>([]);
   const [isLoadingTests, setIsLoadingTests] = useState(true);
   const [testToDelete, setTestToDelete] = useState<Test | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [selectedClass, setSelectedClass] = useState('all');
 
   useEffect(() => {
@@ -105,6 +106,7 @@ const DashboardView: React.FC<DashboardProps> = ({ navigateTo, onStartTest, onEd
   
   const handleDeleteTest = async () => {
     if (!testToDelete || !testToDelete.id) return;
+    setIsDeleting(true);
     try {
         await dataService.deleteTest(testToDelete.id);
         setTests(prevTests => prevTests.filter(t => t.id !== testToDelete.id));
@@ -113,6 +115,7 @@ const DashboardView: React.FC<DashboardProps> = ({ navigateTo, onStartTest, onEd
         addToast(`Failed to delete test: ${error.message}`, 'error');
     } finally {
         setTestToDelete(null);
+        setIsDeleting(false);
     }
   };
   
@@ -292,7 +295,12 @@ const DashboardView: React.FC<DashboardProps> = ({ navigateTo, onStartTest, onEd
                     </div>
                 )}
             </div>
-            {isLoadingTests ? <p className="dark:text-gray-300">Loading tests...</p> : (
+            {isLoadingTests ? (
+                <div className="space-y-4">
+                    <SkeletonCard />
+                    <SkeletonCard />
+                </div>
+            ) : (
               <div className="space-y-4">
                 {filteredTestsForStudent.length > 0 ? filteredTestsForStudent.map(test => (
                   <div key={test.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg border dark:bg-slate-700 dark:border-slate-600">
@@ -310,7 +318,11 @@ const DashboardView: React.FC<DashboardProps> = ({ navigateTo, onStartTest, onEd
           </div>
           <div id="student-submissions" className="bg-white rounded-lg shadow-lg p-6 dark:bg-slate-800">
             <h2 className="text-2xl font-bold text-gray-800 mb-4 dark:text-slate-100">My Past Submissions</h2>
-            {isLoadingTests ? <p className="dark:text-gray-300">Loading submission history...</p> : (
+            {isLoadingTests ? (
+                <div className="space-y-4">
+                    <SkeletonCard />
+                </div>
+            ) : (
               <div className="space-y-4">
                 {mySubmissions.length > 0 ? mySubmissions.map(result => (
                   <div key={result.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg border dark:bg-slate-700 dark:border-slate-600">
@@ -332,7 +344,13 @@ const DashboardView: React.FC<DashboardProps> = ({ navigateTo, onStartTest, onEd
        {(profile?.role === 'teacher' || profile?.role === 'admin') && (
         <div id="teacher-tests" className="bg-white rounded-lg shadow-lg p-6 mt-8 dark:bg-slate-800">
           <h2 className="text-2xl font-bold text-gray-800 mb-4 dark:text-slate-100">My Created Tests</h2>
-          {isLoadingTests ? <p className="dark:text-gray-300">Loading tests...</p> : (
+          {isLoadingTests ? (
+            <div className="space-y-4">
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
+            </div>
+          ) : (
             <div className="space-y-4">
               {myTests.length > 0 ? myTests.map(test => (
                 <div key={test.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg border dark:bg-slate-700 dark:border-slate-600">
@@ -361,7 +379,9 @@ const DashboardView: React.FC<DashboardProps> = ({ navigateTo, onStartTest, onEd
                 <p className="my-4 text-gray-600 dark:text-gray-300">Are you sure you want to delete the test <span className="font-bold">"{testToDelete.title}"</span>? This will permanently remove the test, all its questions, and all student submissions. This action cannot be undone.</p>
                 <div className="flex justify-end space-x-4 mt-6">
                     <button onClick={() => setTestToDelete(null)} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold px-6 py-2 rounded-lg dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-slate-100">Cancel</button>
-                    <button onClick={handleDeleteTest} className="bg-red-600 hover:bg-red-700 text-white font-semibold px-6 py-2 rounded-lg">Delete Test</button>
+                    <button onClick={handleDeleteTest} disabled={isDeleting} className="bg-red-600 hover:bg-red-700 text-white font-semibold px-6 py-2 rounded-lg disabled:bg-red-400">
+                        {isDeleting ? 'Deleting...' : 'Delete Test'}
+                    </button>
                 </div>
             </div>
         </div>

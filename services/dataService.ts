@@ -1,9 +1,8 @@
 
-
-
 import { supabase } from './supabase';
 import { functionService } from './functionService';
 import type { Test, TestResult, EvaluationResult, AnalyticsData } from '../types';
+import { v4 as uuidv4 } from 'uuid';
 
 export const dataService = {
   async createTest(test: Test) {
@@ -69,6 +68,24 @@ export const dataService = {
       .eq('id', resultId);
     if (error) throw error;
     return true;
+  },
+
+  async uploadMediaFile(userId: string, file: File): Promise<string> {
+    const filePath = `${userId}/${uuidv4()}-${file.name}`;
+    const { error: uploadError } = await supabase.storage
+        .from('media') // Assumes a bucket named 'media'
+        .upload(filePath, file);
+
+    if (uploadError) {
+        // Attempt to provide a more helpful error message for common issues.
+        if (uploadError.message.includes('Bucket not found')) {
+            throw new Error("Storage setup needed: A 'media' bucket is required in Supabase Storage. Please create it and set public access policies.");
+        }
+        throw new Error(`Storage error: ${uploadError.message}`);
+    }
+
+    const { data } = supabase.storage.from('media').getPublicUrl(filePath);
+    return data.publicUrl;
   },
 
   async getUsers() {

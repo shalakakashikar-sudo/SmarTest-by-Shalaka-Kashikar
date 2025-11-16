@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -8,7 +9,7 @@ import { useToast } from '../contexts/ToastContext';
 import type { Test, TestResult } from '../types';
 
 interface DashboardProps {
-  navigateTo: (view: 'create-test' | 'edit-test' | 'take-test' | 'submissions' | 'user-management') => void;
+  navigateTo: (view: 'create-test' | 'edit-test' | 'take-test' | 'submissions' | 'user-management' | 'analytics') => void;
   onStartTest: (test: Test) => void;
   onEditTest: (test: Test) => void;
   onViewSubmissions: (test: Test) => void;
@@ -232,8 +233,7 @@ const DashboardView: React.FC<DashboardProps> = ({ navigateTo, onStartTest, onEd
                 title="Take a Test" 
                 description="View and start available tests." 
                 buttonText="View Tests" 
-                // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
-                onClick={() => (window as any).document.getElementById('student-tests')?.scrollIntoView({ behavior: 'smooth' })} 
+                onClick={() => document.getElementById('student-tests')?.scrollIntoView({ behavior: 'smooth' })} 
                 color="bg-green-600 hover:bg-green-700" 
                 icon="✏️" 
               />
@@ -250,6 +250,14 @@ const DashboardView: React.FC<DashboardProps> = ({ navigateTo, onStartTest, onEd
               icon="📝" 
             />
             <DashboardCard 
+              title="Analytics"
+              description="View performance data and class insights."
+              buttonText="View Analytics"
+              onClick={() => navigateTo('analytics')}
+              color="bg-teal-600 hover:bg-teal-700"
+              icon="📊"
+            />
+            <DashboardCard 
               title="User Management" 
               description="View and manage student and teacher accounts." 
               buttonText="Manage Users" 
@@ -257,15 +265,6 @@ const DashboardView: React.FC<DashboardProps> = ({ navigateTo, onStartTest, onEd
               color="bg-purple-600 hover:bg-purple-700" 
               icon="👥" 
             />
-            {profile?.role === 'admin' && (
-              <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow dark:bg-slate-800 dark:hover:shadow-indigo-900/20">
-                <div className="text-center">
-                  <div className="text-4xl mb-4">🔐</div>
-                  <h3 className="text-xl font-semibold text-gray-800 mb-2 dark:text-slate-100">Security Note</h3>
-                  <p className="text-gray-600 mb-4 dark:text-gray-400">AI API keys are securely managed on the server via Supabase Edge Functions to prevent misuse.</p>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -283,8 +282,7 @@ const DashboardView: React.FC<DashboardProps> = ({ navigateTo, onStartTest, onEd
                         <select
                             id="class-filter"
                             value={selectedClass}
-                            // FIX: Cast event target to 'any' to access the 'value' property, resolving a TypeScript type error.
-                            onChange={(e) => setSelectedClass((e.target as any).value)}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedClass(e.target.value)}
                             className="p-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition dark:bg-slate-700 dark:border-slate-600 dark:text-white"
                         >
                             {availableClasses.map(c => (

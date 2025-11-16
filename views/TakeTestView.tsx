@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { aiService } from '../services/aiService';
@@ -41,8 +42,7 @@ const TakeTestView: React.FC<TakeTestProps> = ({ test, onSubmitTest, navigateTo 
   const [endTime, setEndTime] = useState<number | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(test.timer ? test.timer * 60 : null);
   const [isLoading, setIsLoading] = useState(false);
-  // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
-  const originalTitle = useRef((window as any).document.title);
+  const originalTitle = useRef(document.title);
   
   const stateRef = useRef({ answers, endTime });
   stateRef.current = { answers, endTime };
@@ -105,31 +105,21 @@ const TakeTestView: React.FC<TakeTestProps> = ({ test, onSubmitTest, navigateTo 
     const handleContextmenu = (e: MouseEvent) => e.preventDefault();
     const handleCopy = (e: ClipboardEvent) => e.preventDefault();
     const handleVisibilityChange = () => {
-        // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
-        if ((window as any).document.hidden) addToast('Tab switching detected. Please remain on the test page.', 'warning');
+        if (document.hidden) addToast('Tab switching detected. Please remain on the test page.', 'warning');
     };
 
-    // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
-    (window as any).document.addEventListener('contextmenu', handleContextmenu);
-    // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
-    (window as any).document.addEventListener('copy', handleCopy);
-    // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
-    (window as any).document.addEventListener('visibilitychange', handleVisibilityChange);
-    // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
-    (window as any).document.body.classList.add('select-none');
+    document.addEventListener('contextmenu', handleContextmenu);
+    document.addEventListener('copy', handleCopy);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.body.classList.add('select-none');
     addToast('Anti-cheat protection is active.', 'info');
     
     return () => {
-      // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
-      (window as any).document.removeEventListener('contextmenu', handleContextmenu);
-      // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
-      (window as any).document.removeEventListener('copy', handleCopy);
-      // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
-      (window as any).document.removeEventListener('visibilitychange', handleVisibilityChange);
-      // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
-      (window as any).document.body.classList.remove('select-none');
-      // FIX: Cast `window` to `any` to resolve an error where the `document` property was not found on the `Window` type.
-      (window as any).document.title = originalTitle.current;
+      document.removeEventListener('contextmenu', handleContextmenu);
+      document.removeEventListener('copy', handleCopy);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.body.classList.remove('select-none');
+      document.title = originalTitle.current;
     };
   }, [addToast]);
 
@@ -139,8 +129,6 @@ const TakeTestView: React.FC<TakeTestProps> = ({ test, onSubmitTest, navigateTo 
       return;
     }
     
-    // FIX: Use ref to get the latest answers, making this callback stable
-    // and preventing it from causing the timer effect to re-run on every keystroke.
     const currentAnswers = stateRef.current.answers;
 
     setIsLoading(true);
@@ -186,8 +174,6 @@ const TakeTestView: React.FC<TakeTestProps> = ({ test, onSubmitTest, navigateTo 
     }, 1000);
 
     return () => clearInterval(timerId);
-    // FIX: This effect now only depends on stable values, so it won't be
-    // reset when the student types, fixing the pausing timer bug.
   }, [endTime, handleSubmit, addToast]);
 
 
@@ -252,13 +238,10 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
     ) => (tag: 'b' | 'i' | 'u') => {
         const textarea = ref.current;
         if (!textarea) return;
-        // FIX: Cast `textarea` to `any` to bypass TS errors for missing DOM properties.
-        const start = (textarea as any).selectionStart;
-        // FIX: Cast `textarea` to `any` to bypass TS errors for missing DOM properties.
-        const end = (textarea as any).selectionEnd;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
         if (start === end) return;
-        // FIX: Cast `textarea` to `any` to bypass TS errors for missing DOM properties.
-        const value = (textarea as any).value;
+        const value = textarea.value;
         const selectedText = value.substring(start, end);
         const newValue = `${value.substring(0, start)}<${tag}>${selectedText}</${tag}>${value.substring(end)}`;
         callback(newValue);
@@ -277,8 +260,7 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
                 <div className="space-y-2">
                     {question.options?.map((opt, i) => (
                         <label key={i} className="flex items-center space-x-2 p-2 hover:bg-gray-100 dark:hover:bg-slate-600 rounded cursor-pointer">
-                            {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                            <input type="radio" name={`question-${index}`} value={String.fromCharCode(65+i)} onChange={e => onAnswerChange(index, (e.target as any).value)} checked={answer === String.fromCharCode(65+i)} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
+                            <input type="radio" name={`question-${index}`} value={String.fromCharCode(65+i)} onChange={(e: React.ChangeEvent<HTMLInputElement>) => onAnswerChange(index, e.target.value)} checked={answer === String.fromCharCode(65+i)} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
                             <span className="dark:text-slate-200">{String.fromCharCode(65 + i)}. {opt}</span>
                         </label>
                     ))}
@@ -289,13 +271,11 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
             answerInput = (
                 <div className="space-y-2">
                      <label className="flex items-center space-x-2 p-2 hover:bg-gray-100 dark:hover:bg-slate-600 rounded cursor-pointer">
-                        {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                        <input type="radio" name={`question-${index}`} value="True" onChange={e => onAnswerChange(index, (e.target as any).value)} checked={answer === 'True'} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
+                        <input type="radio" name={`question-${index}`} value="True" onChange={(e: React.ChangeEvent<HTMLInputElement>) => onAnswerChange(index, e.target.value)} checked={answer === 'True'} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
                         <span className="dark:text-slate-200">True</span>
                     </label>
                      <label className="flex items-center space-x-2 p-2 hover:bg-gray-100 dark:hover:bg-slate-600 rounded cursor-pointer">
-                        {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                        <input type="radio" name={`question-${index}`} value="False" onChange={e => onAnswerChange(index, (e.target as any).value)} checked={answer === 'False'} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
+                        <input type="radio" name={`question-${index}`} value="False" onChange={(e: React.ChangeEvent<HTMLInputElement>) => onAnswerChange(index, e.target.value)} checked={answer === 'False'} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
                         <span className="dark:text-slate-200">False</span>
                     </label>
                 </div>
@@ -305,8 +285,7 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
             answerInput = (
                 <>
                     <MiniToolbar onFormat={handleFormat(answerTextareaRef, (newValue) => onAnswerChange(index, newValue))} />
-                    {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                    <textarea ref={answerTextareaRef} className={commonTextareaClasses} rows={3} placeholder="Enter your answer" value={typeof answer === 'string' ? answer : ''} onChange={e => onAnswerChange(index, (e.target as any).value)} />
+                    <textarea ref={answerTextareaRef} className={commonTextareaClasses} rows={3} placeholder="Enter your answer" value={typeof answer === 'string' ? answer : ''} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onAnswerChange(index, e.target.value)} />
                     <WordCounter text={typeof answer === 'string' ? answer : ''} limit={question.expected_word_limit} />
                 </>
             );
@@ -315,8 +294,7 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
             answerInput = (
                 <>
                     <MiniToolbar onFormat={handleFormat(answerTextareaRef, (newValue) => onAnswerChange(index, newValue))} />
-                    {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                    <textarea ref={answerTextareaRef} className={commonTextareaClasses} rows={6} placeholder="Write your detailed answer here" value={typeof answer === 'string' ? answer : ''} onChange={e => onAnswerChange(index, (e.target as any).value)} />
+                    <textarea ref={answerTextareaRef} className={commonTextareaClasses} rows={6} placeholder="Write your detailed answer here" value={typeof answer === 'string' ? answer : ''} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => onAnswerChange(index, e.target.value)} />
                     <WordCounter text={typeof answer === 'string' ? answer : ''} limit={question.expected_word_limit} />
                 </>
             );
@@ -339,8 +317,7 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
                                 <div className="space-y-1 mt-2">
                                     {compQ.options?.map((opt, i) => (
                                         <label key={i} className="flex items-center space-x-2 p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded cursor-pointer">
-                                            {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                                            <input type="radio" name={`question-${index}-${compIndex}`} value={String.fromCharCode(65 + i)} onChange={e => handleComprehensionAnswer(compIndex, (e.target as any).value)} checked={compAnswer === String.fromCharCode(65 + i)} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
+                                            <input type="radio" name={`question-${index}-${compIndex}`} value={String.fromCharCode(65 + i)} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleComprehensionAnswer(compIndex, e.target.value)} checked={compAnswer === String.fromCharCode(65 + i)} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
                                             <span className="dark:text-slate-300 text-sm">{String.fromCharCode(65 + i)}. {opt}</span>
                                         </label>
                                     ))}
@@ -350,13 +327,11 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
                             compAnswerInput = (
                                 <div className="space-y-1 mt-2">
                                     <label className="flex items-center space-x-2 p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded cursor-pointer">
-                                        {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                                        <input type="radio" name={`question-${index}-${compIndex}`} value="True" onChange={e => handleComprehensionAnswer(compIndex, (e.target as any).value)} checked={compAnswer === 'True'} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
+                                        <input type="radio" name={`question-${index}-${compIndex}`} value="True" onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleComprehensionAnswer(compIndex, e.target.value)} checked={compAnswer === 'True'} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
                                         <span className="dark:text-slate-300 text-sm">True</span>
                                     </label>
                                     <label className="flex items-center space-x-2 p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded cursor-pointer">
-                                        {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                                        <input type="radio" name={`question-${index}-${compIndex}`} value="False" onChange={e => handleComprehensionAnswer(compIndex, (e.target as any).value)} checked={compAnswer === 'False'} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
+                                        <input type="radio" name={`question-${index}-${compIndex}`} value="False" onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleComprehensionAnswer(compIndex, e.target.value)} checked={compAnswer === 'False'} className="text-blue-600 focus:ring-indigo-500 dark:text-indigo-400" />
                                         <span className="dark:text-slate-300 text-sm">False</span>
                                     </label>
                                 </div>
@@ -371,8 +346,7 @@ const QuestionDisplay: React.FC<{ question: Question; index: number; answer: str
                                         rows={2}
                                         placeholder="Enter your answer"
                                         value={compAnswer}
-                                        // FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue.
-                                        onChange={e => handleComprehensionAnswer(compIndex, (e.target as any).value)}
+                                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleComprehensionAnswer(compIndex, e.target.value)}
                                     />
                                     <WordCounter text={compAnswer} />
                                 </>

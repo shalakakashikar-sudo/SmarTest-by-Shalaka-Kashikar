@@ -1,8 +1,9 @@
 
 
+
 import { supabase } from './supabase';
 import { functionService } from './functionService';
-import type { Test, TestResult, EvaluationResult } from '../types';
+import type { Test, TestResult, EvaluationResult, AnalyticsData } from '../types';
 
 export const dataService = {
   async createTest(test: Test) {
@@ -55,6 +56,10 @@ export const dataService = {
   async getMyTestResults() {
     const data = await functionService.invoke<TestResult[]>('get-my-results');
     return data;
+  },
+
+  async getAnalyticsData(): Promise<AnalyticsData> {
+    return await functionService.invoke<AnalyticsData>('get-analytics-data');
   },
 
   async deleteTestResult(resultId: string) {

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -11,11 +12,12 @@ import ResultsView from './views/ResultsView';
 import SubmissionsView from './views/SubmissionsView';
 import SubmissionDetailView from './views/SubmissionDetailView';
 import UserManagementView from './views/StudentManagementView';
+import AnalyticsView from './views/AnalyticsView';
 import { Test, TestResult } from './types';
 import { supabase } from './services/supabase';
 import type { Session } from '@supabase/supabase-js';
 
-type View = 'auth' | 'dashboard' | 'create-test' | 'edit-test' | 'take-test' | 'preview-test' | 'results' | 'submissions' | 'submission-detail' | 'user-management';
+type View = 'auth' | 'dashboard' | 'create-test' | 'edit-test' | 'take-test' | 'preview-test' | 'results' | 'submissions' | 'submission-detail' | 'user-management' | 'analytics';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -166,6 +168,8 @@ const App: React.FC = () => {
         );
       case 'user-management':
         return <UserManagementView navigateTo={navigateTo} />;
+      case 'analytics':
+        return <AnalyticsView navigateTo={navigateTo} />;
       default:
         return <DashboardView {...dashboardProps} />;
     }

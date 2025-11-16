@@ -1,3 +1,4 @@
+
 // supabase/functions/clever-endpoint/index.ts
 // FIX: Import GenerateContentResponse to correctly type the API response.
 import { GoogleGenAI, Type, GenerateContentResponse } from "https://esm.sh/@google/genai@^1.27.0";
@@ -12,6 +13,12 @@ const corsHeaders = {
 
 // Fix: Declare Deno to address "Cannot find name 'Deno'" error in TypeScript environments that don't have Deno types globally available.
 declare const Deno: any;
+
+// Minimal types for fallback API providers to avoid using `any`
+interface ApiChoice { message: { content: string }; }
+interface GroqApiResponse { choices: ApiChoice[]; }
+interface OpenAiApiResponse { choices: ApiChoice[]; }
+
 
 const evaluationSchema = {
   type: Type.OBJECT,
@@ -130,10 +137,9 @@ async function generateWithFallback(prompt: string, schema: any, primaryModel: '
         })
       }));
       if (!response.ok) throw new Error(`Groq API error (${response.status}): ${await response.text()}`);
-      const data = await response.json();
+      const data = await response.json() as GroqApiResponse;
       console.log("Success with Groq.");
-      // FIX: Cast `data` to `any` to resolve error on `choices` property.
-      return (data as any).choices[0].message.content;
+      return data.choices[0].message.content;
     } catch (error) {
       console.warn("Groq fallback failed:", error.message);
     }
@@ -161,10 +167,9 @@ async function generateWithFallback(prompt: string, schema: any, primaryModel: '
         })
       }));
       if (!response.ok) throw new Error(`OpenAI API error (${response.status}): ${await response.text()}`);
-      const data = await response.json();
+      const data = await response.json() as OpenAiApiResponse;
       console.log("Success with OpenAI.");
-      // FIX: Cast `data` to `any` to resolve error on `choices` property.
-      return (data as any).choices[0].message.content;
+      return data.choices[0].message.content;
     } catch (error) {
       console.warn("OpenAI fallback failed:", error.message);
     }

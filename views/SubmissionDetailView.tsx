@@ -1,5 +1,6 @@
+
 import React from 'react';
-import type { Test, TestResult, Question } from '../types';
+import type { Test, TestResult, Question, QuestionScore } from '../types';
 
 interface SubmissionDetailProps {
   test: Test;
@@ -46,8 +47,8 @@ const SubmissionDetailView: React.FC<SubmissionDetailProps> = ({ test, submissio
   );
 };
 
-const QuestionBreakdown: React.FC<{ question: Question, answer: any, score: any, index: number }> = ({ question, answer, score, index }) => {
-    const percentage = score.maxMarks > 0 ? Math.round((score.score / score.maxMarks) * 100) : 0;
+const QuestionBreakdown: React.FC<{ question: Question, answer: (string | Record<number, string>), score: QuestionScore, index: number }> = ({ question, answer, score, index }) => {
+    const percentage = score.maxMarks && score.maxMarks > 0 ? Math.round((score.score / score.maxMarks) * 100) : 0;
     const scoreColor = percentage >= 80 ? 'text-green-500 dark:text-green-400' :
                        percentage >= 60 ? 'text-yellow-500 dark:text-yellow-400' : 'text-red-500 dark:text-red-400';
 
@@ -98,8 +99,8 @@ const QuestionBreakdown: React.FC<{ question: Question, answer: any, score: any,
   );
 };
 
-const DisplayAnswer: React.FC<{answer: any, question: Question}> = ({ answer, question }) => {
-    if (question.type === 'reading-comprehension') {
+const DisplayAnswer: React.FC<{answer: (string | Record<number, string>), question: Question}> = ({ answer, question }) => {
+    if (question.type === 'reading-comprehension' && typeof answer === 'object') {
         return (
             <div className="space-y-2">
                 {(question.comprehension_questions || []).map((compQ, index) => {
@@ -129,16 +130,19 @@ const DisplayAnswer: React.FC<{answer: any, question: Question}> = ({ answer, qu
         );
     }
     
+    // FIX: Correctly handle multiple-choice answers by ensuring 'answer' is a string before rendering.
+    // This prevents a React error when 'answer' is an object and fixes a bug in calculating the selected option.
     if (question.type === 'multiple-choice') {
-        const optionIndex = answer ? answer.charCodeAt(0) - 65 : -1;
+        const answerString = typeof answer === 'string' ? answer : null;
+        const optionIndex = answerString ? answerString.charCodeAt(0) - 65 : -1;
         const selectedOption = question.options?.[optionIndex];
-        return <p className="text-gray-800 whitespace-pre-wrap dark:text-slate-200">{answer}. {selectedOption || <span className="text-gray-400 italic">No answer provided</span>}</p>
+        return <p className="text-gray-800 whitespace-pre-wrap dark:text-slate-200">{answerString ? `${answerString}. ${selectedOption}` : <span className="text-gray-400 italic">No answer provided</span>}</p>
     }
 
     return (
         <div 
             className="text-gray-800 whitespace-pre-wrap dark:text-slate-200"
-            dangerouslySetInnerHTML={{ __html: answer || `<span class="text-gray-400 italic">No answer provided</span>` }}
+            dangerouslySetInnerHTML={{ __html: String(answer) || `<span class="text-gray-400 italic">No answer provided</span>` }}
         />
     );
 };

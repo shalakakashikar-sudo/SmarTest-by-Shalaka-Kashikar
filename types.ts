@@ -1,3 +1,4 @@
+
 export type Role = 'student' | 'teacher' | 'admin';
 
 export interface UserProfile {
@@ -59,8 +60,6 @@ export interface Test {
 export interface QuestionScore {
     score: number;
     feedback: string;
-    // FIX: Add optional `maxMarks` property to resolve type errors in ResultsView.
-    // This property is added by the aiService during evaluation.
     maxMarks?: number;
 }
 
@@ -71,7 +70,6 @@ export interface EvaluationResult {
     strengths: string;
     weaknesses: string;
     questionScores: QuestionScore[];
-    // FIX: Add optional properties to store total marks, resolving type errors in aiService.
     totalAwardedMarks?: number;
     totalPossibleMarks?: number;
 }
@@ -85,4 +83,27 @@ export interface TestResult {
     answers: (string | Record<number, string>)[];
     evaluation: EvaluationResult;
     submitted_at?: string;
+}
+
+export interface AnalyticsData {
+  overallStats: {
+    averageScore: number;
+    totalSubmissions: number;
+    testCount: number;
+  };
+  performanceByTest: {
+    testTitle: string;
+    averageScore: number;
+    submissionCount: number;
+  }[];
+  mostDifficultQuestions: {
+    questionText: string;
+    testTitle: string;
+    averageSuccessRate: number;
+  }[];
+  performanceTrend: {
+    date: string;
+    testTitle: string;
+    averageScore: number;
+  }[];
 }

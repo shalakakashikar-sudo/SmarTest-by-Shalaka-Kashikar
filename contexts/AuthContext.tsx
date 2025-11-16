@@ -1,11 +1,10 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
-// FIX: The `Session` type is not exported in older versions of `@supabase/supabase-js`.
-// Using `any` for compatibility until the library is updated.
-// import type { Session } from '@supabase/supabase-js';
+import type { Session } from '@supabase/supabase-js';
 import { UserProfile } from '../types';
 
 interface AuthContextType {
-  session: any | null;
+  session: Session | null;
   profile: UserProfile | null;
   loading: boolean;
 }
@@ -16,7 +15,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
 });
 
-export const AuthProvider: React.FC<{ session: any | null; children: React.ReactNode }> = ({ session, children }) => {
+export const AuthProvider: React.FC<{ session: Session | null; children: React.ReactNode }> = ({ session, children }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 

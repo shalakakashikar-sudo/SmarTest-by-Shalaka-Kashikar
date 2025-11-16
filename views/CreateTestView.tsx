@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { dataService } from '../services/dataService';
@@ -214,18 +215,15 @@ const CreateTestView: React.FC<CreateTestViewProps> = ({ navigateTo, testToEdit,
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 p-4 border rounded-lg dark:border-slate-700">
                 <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Test Title</label>
-                    {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                    <input type="text" value={title} onChange={e => setTitle((e.target as any).value)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="e.g., Chapter 5: Photosynthesis Quiz" />
+                    <input type="text" value={title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="e.g., Chapter 5: Photosynthesis Quiz" />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Class / Subject</label>
-                    {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                    <input type="text" value={testClass} onChange={e => setTestClass((e.target as any).value)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="e.g., Grade 10 Biology" />
+                    <input type="text" value={testClass} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTestClass(e.target.value)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="e.g., Grade 10 Biology" />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Time Limit (minutes)</label>
-                    {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                    <input type="number" value={timer === null ? '' : timer} onChange={e => setTimer((e.target as any).value ? parseInt((e.target as any).value) : null)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="Optional" />
+                    <input type="number" value={timer === null ? '' : timer} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTimer(e.target.value ? parseInt(e.target.value) : null)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="Optional" />
                 </div>
                 <div className="md:col-span-2 flex items-center justify-start text-sm text-gray-600 dark:text-gray-400">
                     <span className="mr-4">Total Questions: <span className="font-bold text-gray-800 dark:text-slate-200">{questions.length}</span></span>
@@ -299,18 +297,15 @@ const MediaModal: React.FC<MediaModalProps> = ({ initialMedia, onClose, onSave }
                 <div className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Image URL</label>
-                        {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                        <input type="text" value={media.image} onChange={e => setMedia(m => ({ ...m, image: (e.target as any).value }))} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="https://example.com/image.png" />
+                        <input type="text" value={media.image} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMedia(m => ({ ...m, image: e.target.value }))} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="https://example.com/image.png" />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Video URL</label>
-                        {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                        <input type="text" value={media.video} onChange={e => setMedia(m => ({ ...m, video: (e.target as any).value }))} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="https://example.com/video.mp4" />
+                        <input type="text" value={media.video} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMedia(m => ({ ...m, video: e.target.value }))} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="https://example.com/video.mp4" />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">Audio URL</label>
-                        {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                        <input type="text" value={media.audio} onChange={e => setMedia(m => ({ ...m, audio: (e.target as any).value }))} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="https://example.com/audio.mp3" />
+                        <input type="text" value={media.audio} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMedia(m => ({ ...m, audio: e.target.value }))} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600" placeholder="https://example.com/audio.mp3" />
                     </div>
                 </div>
                 <div className="flex justify-end space-x-3 pt-6">
@@ -334,8 +329,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, update
     const commonInputClasses = "w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600";
 
     const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        // FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue.
-        const newType = (e.target as any).value as QuestionType;
+        const newType = e.target.value as QuestionType;
         const updatedFields: Partial<TempQuestion> = { type: newType };
         // Set defaults for new type
         if (newType === 'multiple-choice') {
@@ -391,14 +385,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, update
     };
 
     const handleWordLimitChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        // Sanitize the input value by removing any non-digit characters.
-        // This provides a much better user experience than parseInt, as it
-        // prevents invalid characters from being entered and immediately shows
-        // the clean, numeric result. It completely fixes the bug where
-        // typing "30-40" would result in a strange number.
-        // FIX: Cast event target to 'any' to access the 'value' property, resolving a TypeScript type error.
-        const sanitizedValue = (e.target as any).value.replace(/[^0-9]/g, '');
-
+        const sanitizedValue = e.target.value.replace(/[^0-9]/g, '');
         if (sanitizedValue === '') {
             updateQuestion(question.tempId, { expected_word_limit: null });
         } else {
@@ -419,8 +406,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, update
                 <div className="md:col-span-3">
                     <label className="block text-sm font-medium dark:text-gray-300">Question Text</label>
                      <MiniToolbar onFormat={(tag) => {/* ... */}} />
-                    {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                    <textarea value={question.text} onChange={e => updateQuestion(question.tempId, { text: (e.target as any).value })} className={commonInputClasses} rows={2} />
+                    <textarea value={question.text} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateQuestion(question.tempId, { text: e.target.value })} className={commonInputClasses} rows={2} />
                 </div>
                 <div>
                     <label className="block text-sm font-medium dark:text-gray-300">Type</label>
@@ -439,12 +425,10 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, update
                 <div className="mt-4">
                     {question.options?.map((opt, i) => (
                         <div key={i} className="flex items-center space-x-2 mb-2">
-                             {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                             <input type="radio" name={`correct-${question.tempId}`} value={String.fromCharCode(65 + i)} checked={question.correct_answer === String.fromCharCode(65 + i)} onChange={e => updateQuestion(question.tempId, { correct_answer: (e.target as any).value })} />
+                             <input type="radio" name={`correct-${question.tempId}`} value={String.fromCharCode(65 + i)} checked={question.correct_answer === String.fromCharCode(65 + i)} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateQuestion(question.tempId, { correct_answer: e.target.value })} />
                             <span className="font-mono">{String.fromCharCode(65 + i)}.</span>
-                            {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                            <input type="text" value={opt} onChange={e => {
-                                const newOptions = [...question.options!]; newOptions[i] = (e.target as any).value;
+                            <input type="text" value={opt} onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                const newOptions = [...question.options!]; newOptions[i] = e.target.value;
                                 updateQuestion(question.tempId, { options: newOptions });
                             }} className={commonInputClasses} placeholder={`Option ${i+1}`} />
                         </div>
@@ -453,16 +437,15 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, update
             )}
              {question.type === 'true-false' && (
                  <div className="mt-4 flex space-x-4">
-                     <label><input type="radio" name={`correct-${question.tempId}`} value="True" checked={question.correct_answer === 'True'} onChange={e => updateQuestion(question.tempId, { correct_answer: 'True' })} /> True</label>
-                     <label><input type="radio" name={`correct-${question.tempId}`} value="False" checked={question.correct_answer === 'False'} onChange={e => updateQuestion(question.tempId, { correct_answer: 'False' })} /> False</label>
+                     <label><input type="radio" name={`correct-${question.tempId}`} value="True" checked={question.correct_answer === 'True'} onChange={() => updateQuestion(question.tempId, { correct_answer: 'True' })} /> True</label>
+                     <label><input type="radio" name={`correct-${question.tempId}`} value="False" checked={question.correct_answer === 'False'} onChange={() => updateQuestion(question.tempId, { correct_answer: 'False' })} /> False</label>
                  </div>
              )}
              {question.type === 'reading-comprehension' && (
                  <div className="mt-4 space-y-4">
                      <div>
                          <label className="block text-sm font-medium dark:text-gray-300">Reading Passage</label>
-                         {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                         <textarea value={question.passage} onChange={e => updateQuestion(question.tempId, { passage: (e.target as any).value })} className={commonInputClasses} rows={5} />
+                         <textarea value={question.passage} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateQuestion(question.tempId, { passage: e.target.value })} className={commonInputClasses} rows={5} />
                      </div>
                      <div className="space-y-3">
                         {question.comprehension_questions?.map((cq, cqIndex) => (
@@ -471,15 +454,14 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, update
                                     <p className="font-medium text-sm text-gray-600 dark:text-gray-300">Sub-question {cqIndex + 1}</p>
                                     <button onClick={() => removeComprehensionQuestion(cqIndex)} className="text-xs text-red-500 hover:text-red-700">remove</button>
                                 </div>
-                                {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                                <input value={cq.question} onChange={e => updateComprehensionQuestion(cqIndex, 'question', (e.target as any).value)} className={`${commonInputClasses} text-sm`} placeholder={`Sub-question text`} />
+                                <input value={cq.question} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateComprehensionQuestion(cqIndex, 'question', e.target.value)} className={`${commonInputClasses} text-sm`} placeholder={`Sub-question text`} />
                                 
                                 <div className="flex items-center gap-4">
                                     <div className="flex items-center gap-2">
                                         <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Type:</label>
                                         <select
                                             value={cq.type}
-                                            onChange={e => handleComprehensionTypeChange(cqIndex, (e.target as any).value as 'short-answer' | 'multiple-choice' | 'true-false')}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleComprehensionTypeChange(cqIndex, e.target.value as 'short-answer' | 'multiple-choice' | 'true-false')}
                                             className={`${commonInputClasses} !w-48 text-sm`}
                                         >
                                             <option value="short-answer">Short Answer</option>
@@ -489,8 +471,8 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, update
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Marks:</label>
-                                        <input type="number" value={cq.marks} onChange={e => {
-                                            const rawValue = (e.target as any).value;
+                                        <input type="number" value={cq.marks} onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                            const rawValue = e.target.value;
                                             const marks = rawValue === '' ? 0 : parseInt(rawValue, 10);
                                             updateComprehensionQuestion(cqIndex, 'marks', isNaN(marks) ? 0 : marks);
                                         }} className={`${commonInputClasses} !w-24`} placeholder="marks" />
@@ -499,25 +481,25 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, update
 
                                 <textarea
                                     value={cq.marking_scheme ?? ''}
-                                    onChange={e => updateComprehensionQuestion(cqIndex, 'marking_scheme', (e.target as any).value)}
+                                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateComprehensionQuestion(cqIndex, 'marking_scheme', e.target.value)}
                                     className={`${commonInputClasses} text-sm`}
                                     rows={2}
                                     placeholder="Optional: Marking scheme for this sub-question"
                                 />
                                 
                                 {cq.type === 'short-answer' && (
-                                    <textarea value={cq.sample_answer ?? ''} onChange={e => updateComprehensionQuestion(cqIndex, 'sample_answer', (e.target as any).value)} className={`${commonInputClasses} text-sm`} rows={2} placeholder="Sample answer for AI evaluation" />
+                                    <textarea value={cq.sample_answer ?? ''} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateComprehensionQuestion(cqIndex, 'sample_answer', e.target.value)} className={`${commonInputClasses} text-sm`} rows={2} placeholder="Sample answer for AI evaluation" />
                                 )}
                                 
                                 {cq.type === 'multiple-choice' && (
                                     <div className="mt-2 pl-4 space-y-1">
                                         {cq.options?.map((opt, optIndex) => (
                                             <div key={optIndex} className="flex items-center space-x-2">
-                                                <input type="radio" name={`correct-sub-${question.tempId}-${cqIndex}`} value={String.fromCharCode(65 + optIndex)} checked={cq.correct_answer === String.fromCharCode(65 + optIndex)} onChange={e => updateComprehensionQuestion(cqIndex, 'correct_answer', (e.target as any).value)} />
+                                                <input type="radio" name={`correct-sub-${question.tempId}-${cqIndex}`} value={String.fromCharCode(65 + optIndex)} checked={cq.correct_answer === String.fromCharCode(65 + optIndex)} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateComprehensionQuestion(cqIndex, 'correct_answer', e.target.value)} />
                                                 <span className="font-mono text-sm">{String.fromCharCode(65 + optIndex)}.</span>
-                                                <input type="text" value={opt} onChange={e => {
+                                                <input type="text" value={opt} onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                                                     const newOptions = [...(cq.options || [])];
-                                                    newOptions[optIndex] = (e.target as any).value;
+                                                    newOptions[optIndex] = e.target.value;
                                                     updateComprehensionQuestion(cqIndex, 'options', newOptions);
                                                 }} className={`${commonInputClasses} text-sm`} placeholder={`Option ${optIndex + 1}`} />
                                             </div>
@@ -540,8 +522,8 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, update
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm font-medium dark:text-gray-300">Marks</label>
-                    <input type="number" value={question.marks} onChange={e => {
-                        const rawValue = (e.target as any).value;
+                    <input type="number" value={question.marks} onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                        const rawValue = e.target.value;
                         const marks = rawValue === '' ? 0 : parseInt(rawValue, 10);
                         updateQuestion(question.tempId, { marks: isNaN(marks) ? 0 : marks });
                     }} className={commonInputClasses} disabled={question.type === 'reading-comprehension'} />
@@ -562,20 +544,17 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, index, update
                     <>
                         <div>
                              <label className="block text-sm font-medium dark:text-gray-300">Marking Scheme (Optional)</label>
-                             {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                             <textarea value={question.marking_scheme ?? ''} onChange={e => updateQuestion(question.tempId, { marking_scheme: (e.target as any).value })} className={commonInputClasses} rows={3} placeholder="e.g., 1 mark for definition..." />
+                             <textarea value={question.marking_scheme ?? ''} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateQuestion(question.tempId, { marking_scheme: e.target.value })} className={commonInputClasses} rows={3} placeholder="e.g., 1 mark for definition..." />
                         </div>
                         <div>
                              <label className="block text-sm font-medium dark:text-gray-300">Sample Answer (Optional)</label>
-                             {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                             <textarea value={question.sample_answer ?? ''} onChange={e => updateQuestion(question.tempId, { sample_answer: (e.target as any).value })} className={commonInputClasses} rows={3} placeholder="A model answer for AI evaluation." />
+                             <textarea value={question.sample_answer ?? ''} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateQuestion(question.tempId, { sample_answer: e.target.value })} className={commonInputClasses} rows={3} placeholder="A model answer for AI evaluation." />
                         </div>
                     </>
                 ) : (
                     <div className="md:col-span-2">
                          <label className="block text-sm font-medium dark:text-gray-300">Marking Scheme (Optional)</label>
-                         {/* FIX: Cast event target to 'any' to access the 'value' property due to a potential TypeScript environment issue. */}
-                         <textarea value={question.marking_scheme ?? ''} onChange={e => updateQuestion(question.tempId, { marking_scheme: (e.target as any).value })} className={commonInputClasses} rows={2} placeholder="e.g., 1 mark for definition, 1 mark for example..." />
+                         <textarea value={question.marking_scheme ?? ''} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateQuestion(question.tempId, { marking_scheme: e.target.value })} className={commonInputClasses} rows={2} placeholder="e.g., 1 mark for definition, 1 mark for example..." />
                     </div>
                 )}
             </div>

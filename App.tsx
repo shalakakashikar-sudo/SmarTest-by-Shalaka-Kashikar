@@ -1,14 +1,3 @@
-// App.tsx (top imports)
-import { useEffect } from 'react';
-import { initTimeSkew } from './src/utils/timeSkew'; // adjust path if file sits elsewhere
-
-function App(/*...*/) {
-  useEffect(() => {
-    initTimeSkew(); // run once when app loads
-  }, []);
-  // ...rest of App component
-}
-export default App;
 
 import React, { useState, useEffect } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
